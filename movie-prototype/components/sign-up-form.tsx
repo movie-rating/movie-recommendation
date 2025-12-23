@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { linkSessionToUser } from "@/app/auth/sign-up/actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -48,6 +49,10 @@ export function SignUpForm({
         },
       });
       if (error) throw error;
+      
+      // Link anonymous session data to user account
+      await linkSessionToUser();
+      
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");

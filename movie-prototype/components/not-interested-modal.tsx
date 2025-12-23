@@ -16,10 +16,12 @@ export function NotInterestedModal({
 }) {
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async () => {
     setLoading(true)
+    setError(null)
     
     const result = await saveFeedbackAction(
       recommendationId, 
@@ -33,7 +35,7 @@ export function NotInterestedModal({
       router.refresh()
       onClose()
     } else {
-      alert(result.error || 'Failed to save')
+      setError(result.error || 'Failed to save')
     }
   }
 
@@ -62,6 +64,12 @@ export function NotInterestedModal({
               This helps us avoid similar recommendations
             </p>
           </div>
+
+          {error && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button 

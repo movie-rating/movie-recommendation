@@ -6,6 +6,7 @@ import { Button } from './ui/button'
 import { generateMoreRecommendationsAction } from '@/app/recommendations/actions'
 import { useRouter } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
+import type { RecommendationWithFeedback, TasteProfile, TasteGene } from '@/lib/types'
 
 type TabId = 'to_watch' | 'watched' | 'not_interested'
 
@@ -15,16 +16,19 @@ export function RecommendationsTabs({
   tasteProfile,
   topGenes
 }: {
-  recommendations: any[]
+  recommendations: RecommendationWithFeedback[]
   ratedCount: number
-  tasteProfile?: any
-  topGenes?: any[]
+  tasteProfile?: TasteProfile | null
+  topGenes: TasteGene[]
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('to_watch')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  const toWatch = recommendations.filter(r => !r.feedback)
+  const toWatch = recommendations
+    .filter(r => !r.feedback)
+    .sort((a, b) => (b.match_confidence || 0) - (a.match_confidence || 0))
   const watched = recommendations.filter(r => r.feedback?.status === 'watched')
   const notInterested = recommendations.filter(r => r.feedback?.status === 'not_interested')
   
@@ -33,13 +37,14 @@ export function RecommendationsTabs({
 
   const handleLoadMore = async () => {
     setLoading(true)
+    setError(null)
     const result = await generateMoreRecommendationsAction()
     setLoading(false)
     
     if (result.success) {
       router.refresh()
     } else {
-      alert(result.error || 'Failed to generate recommendations')
+      setError(result.error || 'Failed to generate recommendations')
     }
   }
 
@@ -101,6 +106,7 @@ export function RecommendationsTabs({
                         feedback={rec.feedback}
                         movieDetails={rec.movieDetails}
                         mediaType={rec.media_type}
+                        matchConfidence={rec.match_confidence}
                       />
                     ))}
                   </div>
@@ -129,6 +135,7 @@ export function RecommendationsTabs({
                         experimental={true}
                         movieDetails={rec.movieDetails}
                         mediaType={rec.media_type}
+                        matchConfidence={rec.match_confidence}
                       />
                     ))}
                   </div>
@@ -154,6 +161,7 @@ export function RecommendationsTabs({
                 feedback={rec.feedback}
                 movieDetails={rec.movieDetails}
                 mediaType={rec.media_type}
+                matchConfidence={rec.match_confidence}
               />
             ))}
           </div>
@@ -162,6 +170,12 @@ export function RecommendationsTabs({
 
       {activeTab === 'to_watch' && ratedCount >= THRESHOLDS.MIN_RATINGS_FOR_MORE && (regular.length > 0 || experimental.length > 0) && (
         <div className="text-center mt-8">
+          {error && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20 mb-4">
+              <p className="font-semibold mb-1">Error</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
           <Button 
             size="lg"
             onClick={handleLoadMore}

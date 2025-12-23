@@ -25,11 +25,13 @@ export function RatingModal({
   const [rating, setRating] = useState<string>('')
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const handleSubmit = async () => {
     if (!rating) return
     setLoading(true)
+    setError(null)
     
     const result = await saveFeedbackAction(recommendationId, 'watched', rating, reason)
     setLoading(false)
@@ -38,7 +40,7 @@ export function RatingModal({
       router.refresh()
       onClose()
     } else {
-      alert(result.error || 'Failed to save rating')
+      setError(result.error || 'Failed to save rating')
     }
   }
 
@@ -83,6 +85,12 @@ export function RatingModal({
               className="w-full mt-2 px-3 py-2 border rounded-md bg-background min-h-[80px]"
             />
           </div>
+
+          {error && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20">
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
 
           <div className="flex gap-3">
             <Button 

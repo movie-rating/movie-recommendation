@@ -1,6 +1,76 @@
 import { createClient } from './supabase/server'
-import type { TasteGene } from './types'
+import type { TasteGene, UserMovie } from './types'
 import { CONFIDENCE_LEVELS } from './constants'
+
+/**
+ * Database repository functions to reduce query duplication
+ */
+
+export async function getUserMovies(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+) {
+  const { data } = await supabase
+    .from('user_movies')
+    .select('*')
+    .eq('session_id', sessionId)
+  
+  return data || []
+}
+
+export async function getExistingRecommendations(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+) {
+  const { data } = await supabase
+    .from('recommendations')
+    .select('movie_title')
+    .eq('session_id', sessionId)
+  
+  return data || []
+}
+
+export async function getTasteGenes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+) {
+  const { data } = await supabase
+    .from('taste_genes')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('confidence_score', { ascending: false })
+  
+  return data || []
+}
+
+export async function getWatchedMoviesWithFeedback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+) {
+  const { data } = await supabase
+    .from('movie_feedback')
+    .select(`
+      *,
+      recommendations (movie_title)
+    `)
+    .eq('session_id', sessionId)
+    .or('status.eq.watched,status.eq.not_interested')
+  
+  return data || []
+}
+
+export async function getTasteProfile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sessionId: string
+) {
+  const { data } = await supabase
+    .from('taste_profiles')
+    .select('profile_summary')
+    .eq('session_id', sessionId)
+    .single()
+  
+  return data
+}
 
 export async function upsertTasteGene(
   supabase: Awaited<ReturnType<typeof createClient>>,

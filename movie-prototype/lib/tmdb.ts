@@ -55,11 +55,6 @@ export async function searchMedia(title: string, year?: number, mediaType?: 'mov
   return result || null
 }
 
-// Backwards compatibility
-export async function searchMovie(title: string, year?: number) {
-  return searchMedia(title, year, 'movie')
-}
-
 export function getPosterUrl(path: string | null) {
   if (!path) {
     // Return a data URL as fallback instead of external placeholder
@@ -67,23 +62,3 @@ export function getPosterUrl(path: string | null) {
   }
   return `https://image.tmdb.org/t/p/w500${path}`
 }
-
-export async function getMediaDetails(id: number, mediaType: 'movie' | 'tv') {
-  if (!TMDB_KEY) return null
-
-  const endpoint = mediaType === 'movie' ? `movie/${id}` : `tv/${id}`
-  const res = await fetch(
-    `${BASE}/${endpoint}?append_to_response=credits`,
-    {
-      headers: {
-        'Authorization': `Bearer ${TMDB_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      next: { revalidate: 86400 }
-    }
-  )
-
-  if (!res.ok) return null
-  return res.json()
-}
-

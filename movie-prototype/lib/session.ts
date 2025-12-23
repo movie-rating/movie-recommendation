@@ -32,8 +32,8 @@ export async function getOrCreateSession(): Promise<string> {
           sameSite: 'lax'
         })
       } catch (e) {
-        // Cookie setting might fail in some contexts, but session is still created
-        console.log('Cookie setting skipped (will be set on next action)')
+        // Cookie setting might fail in some Server Component contexts
+        // Session is still valid and cookie will be set on next Server Action
       }
     }
   }

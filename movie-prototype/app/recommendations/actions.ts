@@ -1,11 +1,11 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionId } from '@/lib/session'
-import { extractTasteGenes, generateDiverseRecommendations } from '@/lib/gemini'
-import { enrichWithTMDB, filterDuplicateTitles } from '@/lib/utils'
+import { extractTasteGenes } from '@/lib/gemini'
 import { upsertTasteGene, updateTasteProfile } from '@/lib/db-helpers'
 import { revalidatePath } from 'next/cache'
 import { THRESHOLDS } from '@/lib/constants'
+import { generateNewRecommendations } from '@/lib/recommendations-service'
 
 export async function saveFeedbackAction(
   recommendationId: string,
@@ -53,8 +53,8 @@ export async function saveFeedbackAction(
     }
   }
 
-  // Extract taste genes if user watched and provided reasoning
-  if (status === 'watched' && rating && reason) {
+  // Extract taste genes if user watched (reasoning is helpful but not required)
+  if (status === 'watched' && rating) {
     try {
       // Get movie title
       const { data: rec } = await supabase
@@ -70,11 +70,11 @@ export async function saveFeedbackAction(
           .select('gene_name, strength, description, is_negative')
           .eq('session_id', sessionId)
 
-        // Extract new genes
+        // Extract new genes (will work even with empty reasoning)
         const extraction = await extractTasteGenes(
           rec.movie_title,
           rating,
-          reason,
+          reason || '',
           existingGenes || []
         )
 
@@ -101,109 +101,8 @@ export async function saveFeedbackAction(
 }
 
 export async function generateMoreRecommendationsAction() {
-  const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
-
-  const supabase = await createClient()
-
-  // Get original movies from user input
-  const { data: userMovies } = await supabase
-    .from('user_movies')
-    .select('*')
-    .eq('session_id', sessionId)
-
-  // Get ALL existing recommendations (to avoid duplicates)
-  const { data: existingRecs } = await supabase
-    .from('recommendations')
-    .select('movie_title')
-    .eq('session_id', sessionId)
-
-  // Get all feedback (watched movies with ratings and not interested)
-  const { data: feedbackData } = await supabase
-    .from('movie_feedback')
-    .select(`
-      *,
-      recommendations (movie_title)
-    `)
-    .eq('session_id', sessionId)
-    .or('status.eq.watched,status.eq.not_interested')
-
-  // Count only watched+rated movies for the threshold
-  const ratedCount = feedbackData?.filter(f => f.status === 'watched' && f.rating).length || 0
-  
-  if (ratedCount < THRESHOLDS.MIN_RATINGS_FOR_MORE) {
-    return { success: false, error: `Need at least ${THRESHOLDS.MIN_RATINGS_FOR_MORE} rated movies` }
-  }
-
-  // Get list of movie titles to avoid - ONLY watched/rated/dismissed, not unwatched queue
-  const watchedMovieTitles = feedbackData?.map(f => f.recommendations.movie_title) || []
-  const existingMovieTitles = [
-    ...(userMovies?.map(m => m.movie_title) || []),
-    ...watchedMovieTitles  // Only movies with feedback, not all recommendations
-  ]
-
-  // Get taste genes
-  const { data: tasteGenes } = await supabase
-    .from('taste_genes')
-    .select('*')
-    .eq('session_id', sessionId)
-    .order('confidence_score', { ascending: false })
-
-  const { data: profile } = await supabase
-    .from('taste_profiles')
-    .select('profile_summary')
-    .eq('session_id', sessionId)
-    .single()
-
-  try {
-    // Generate safe recommendations (10 movies)
-    const safeRecs = await generateDiverseRecommendations(
-      userMovies || [],
-      tasteGenes || [],
-      profile?.profile_summary || 'Emerging taste profile',
-      existingMovieTitles,
-      'safe'
-    )
-
-    // Generate experimental recommendations (5 movies)
-    const expRecs = await generateDiverseRecommendations(
-      userMovies || [],
-      tasteGenes || [],
-      profile?.profile_summary || 'Emerging taste profile',
-      existingMovieTitles,
-      'experimental'
-    )
-
-    // Combine and enrich
-    const allRecs = [...safeRecs, ...expRecs]
-    const enrichedAll = await enrichWithTMDB(allRecs, sessionId)
-
-    // Final duplicate check before inserting
-    const enriched = filterDuplicateTitles(enrichedAll, existingMovieTitles)
-
-    // Remove temporary title_lower field
-    const toInsert = enriched.map(({ title_lower, ...rest }) => rest)
-
-    // Store new recommendations (only unique ones)
-    if (toInsert.length === 0) {
-      return { success: false, error: 'No new unique recommendations generated. All were duplicates.' }
-    }
-
-    const { error } = await supabase.from('recommendations').insert(toInsert)
-    
-    if (error) {
-      console.error('Error storing recommendations:', error)
-      return { success: false, error: 'Failed to store recommendations' }
-    }
-
-    revalidatePath('/recommendations')
-    return { success: true }
-  } catch (error) {
-    console.error('Error generating recommendations:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to generate recommendations' 
-    }
-  }
+  return generateNewRecommendations({
+    minRatingsRequired: THRESHOLDS.MIN_RATINGS_FOR_MORE
+  })
 }
 

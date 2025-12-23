@@ -16,7 +16,11 @@ ${movies.map(m => {
 }).join('\n')}
 
 Respond with ONLY valid JSON, no markdown or code blocks:
-[{"title": "Movie Name", "year": 2020, "reasoning": "Why they'd enjoy it (max 100 chars)"}]`
+[{"title": "Movie Name", "year": 2020, "reasoning": "Why they'd enjoy it (max 100 chars)", "ai_confidence": 75}]
+
+For ai_confidence (0-100 scale):
+- Use 70-85 for recommendations based on their explicit ratings
+- Higher scores for stronger alignment with their stated preferences`
 
   const result = await model.generateContent(prompt)
   const text = result.response.text()
@@ -40,7 +44,7 @@ export async function extractTasteGenes(
 
 Movie: "${movieTitle}"
 Rating: ${rating.toUpperCase()}
-User's reasoning: "${reason}"
+${reason ? `User's reasoning: "${reason}"` : 'User provided no detailed reasoning.'}
 
 ${existingGenes.length > 0 ? `Known genes from previous feedback:
 ${existingGenes.map(g => `- ${g.gene_name} (strength: ${g.strength}/5)${g.is_negative ? ' [AVOID]' : ''}: ${g.description}`).join('\n')}
@@ -54,13 +58,9 @@ Extract taste genes following these rules:
 4. Dealbreakers: true only for absolute requirements/rejections
 5. Be specific and actionable
 
-${isNegative ? `For NEGATIVE ratings (meh/hate), focus on what to AVOID:
-- "slow_pacing_intolerable" not "likes_fast_pacing"
-- "no_pretentious_art_films" not "likes_accessible_films"
-- "avoid_gore_violence" not "likes_mild_content"` : `For POSITIVE ratings (love/like), focus on what they ENJOY:
-- "smart_but_accessible" not "avoids_dumb_movies"
-- "emotional_anchor_required" not "no_cold_intellectualism"
-- "character_driven_stories" not "avoids_plot_only_films"`}
+${reason ? '' : 'Since no reasoning was provided, infer preferences from the movie\'s known characteristics (genre, themes, style, pacing) and the rating.'}
+
+${isNegative ? `For NEGATIVE ratings (meh/hate), focus on what to AVOID based on the movie's characteristics.` : `For POSITIVE ratings (love/like), focus on what they ENJOY based on the movie's characteristics.`}
 
 Respond with ONLY valid JSON:
 {
@@ -121,8 +121,13 @@ Ensure variety across the ${count} recommendations:
 
 Generate ${count} movies and TV shows that strongly match their core preferences while maintaining this diversity.
 
+For each recommendation, provide an ai_confidence score (0-100) indicating match strength:
+- 85-95: Excellent alignment with multiple strong taste genes
+- 75-84: Good alignment with their core preferences
+- 70-74: Solid match but less certain
+
 Respond with ONLY valid JSON:
-[{"title": "Movie Name", "year": 2020, "reasoning": "Why it matches their taste (max 100 chars)", "confidence": "high"}]`
+[{"title": "Movie Name", "year": 2020, "reasoning": "Why it matches their taste (max 100 chars)", "ai_confidence": 85}]`
     : `You are an entertainment expert. Generate ${count} EXPERIMENTAL movie or TV show recommendations that expand this user's taste.
 
 TASTE PROFILE:
@@ -153,18 +158,29 @@ Generate ${count} movies or TV shows that:
 
 These should be "safe experiments" - different but likely to succeed.
 
+For experimental picks, provide ai_confidence scores (0-100):
+- 70-80: Well-reasoned stretch with good potential
+- 60-69: Interesting exploration, moderate confidence
+- 50-59: Bold experiment, lower certainty
+
 Respond with ONLY valid JSON:
-[{"title": "Movie Name", "year": 2020, "reasoning": "Why this stretch makes sense (max 100 chars)", "confidence": "experimental"}]`
+[{"title": "Movie Name", "year": 2020, "reasoning": "Why this stretch makes sense (max 100 chars)", "ai_confidence": 70}]`
 
   const result = await model.generateContent(prompt)
   const text = result.response.text()
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
   const recommendations = JSON.parse(cleaned)
   
-  // Filter duplicates
+  // Filter duplicates - both against existing and internally
   const existingLower = existingMovieTitles.map(t => t.toLowerCase())
-  return recommendations.filter((r: any) => 
-    !existingLower.includes(r.title.toLowerCase())
-  )
+  const seen = new Set<string>()
+  
+  return recommendations.filter((r: any) => {
+    const titleLower = r.title.toLowerCase()
+    if (existingLower.includes(titleLower)) return false
+    if (seen.has(titleLower)) return false
+    seen.add(titleLower)
+    return true
+  })
 }
 

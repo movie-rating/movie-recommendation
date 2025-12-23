@@ -27,6 +27,7 @@ export interface Recommendation {
   reasoning: string
   poster_path: string | null
   is_experimental: boolean
+  match_confidence: number
   number_of_seasons?: number | null
   number_of_episodes?: number | null
   created_at?: string
@@ -57,5 +58,50 @@ export interface TasteProfile {
   confidence_level: 'emerging' | 'developing' | 'established'
   updated_at: string
   created_at: string
+}
+
+// Composite types for components
+export interface RecommendationWithFeedback extends Recommendation {
+  posterUrl: string
+  feedback: MovieFeedback | null
+  movieDetails?: TMDBMovieDetails | TMDBTVDetails | null
+}
+
+// TMDB API response types
+export interface TMDBMovieDetails {
+  id: number
+  title: string
+  overview: string
+  poster_path: string | null
+  backdrop_path: string | null
+  release_date: string
+  runtime: number
+  vote_average: number
+  vote_count: number
+  genres: Array<{ id: number; name: string }>
+  credits?: {
+    cast: Array<{ id: number; name: string; character: string; profile_path: string | null }>
+    crew: Array<{ id: number; name: string; job: string; department: string }>
+  }
+}
+
+export interface TMDBTVDetails {
+  id: number
+  name: string
+  overview: string
+  poster_path: string | null
+  backdrop_path: string | null
+  first_air_date: string
+  episode_run_time: number[]
+  number_of_seasons: number
+  number_of_episodes: number
+  vote_average: number
+  vote_count: number
+  genres: Array<{ id: number; name: string }>
+  created_by: Array<{ id: number; name: string; profile_path: string | null }>
+  credits?: {
+    cast: Array<{ id: number; name: string; character: string; profile_path: string | null }>
+    crew: Array<{ id: number; name: string; job: string; department: string }>
+  }
 }
 

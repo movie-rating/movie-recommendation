@@ -39,8 +39,8 @@ export async function submitMoviesAction(
       ...movies.map(m => m.title)
     ]
 
-    // 4. Enrich with TMDB data
-    const enrichedAll = await enrichWithTMDB(recs, sessionId)
+    // 4. Enrich with TMDB data (no taste genes yet for initial recommendations)
+    const enrichedAll = await enrichWithTMDB(recs, sessionId, [], false)
 
     // Filter out duplicates
     const enriched = filterDuplicateTitles(enrichedAll, existingTitles)

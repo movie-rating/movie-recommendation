@@ -3,19 +3,33 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { updateGeneAction, deleteGeneAction, regenerateWithGenesAction } from '@/app/recommendations/gene-actions'
 import { useRouter } from 'next/navigation'
+import type { TasteGene } from '@/lib/types'
 
 export function GeneManager({ 
   genes,
   sessionHasFeedback 
 }: {
-  genes: any[]
+  genes: TasteGene[]
   sessionHasFeedback: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  if (genes.length === 0) return null
+  if (genes.length === 0) {
+    return (
+      <div className="mb-8 p-6 bg-card rounded-lg border">
+        <h3 className="text-lg font-bold mb-2">Your Taste DNA</h3>
+        <p className="text-sm text-muted-foreground">
+          {sessionHasFeedback 
+            ? "Your taste profile is being analyzed. Rate more movies to see your taste genes!"
+            : "Rate movies from your recommendations to build your taste profile. We'll identify patterns in what you love and avoid."
+          }
+        </p>
+      </div>
+    )
+  }
 
   const positiveGenes = genes.filter(g => !g.is_negative)
   const negativeGenes = genes.filter(g => g.is_negative)
@@ -46,12 +60,13 @@ export function GeneManager({
   const handleRegenerate = async () => {
     if (!confirm('Generate new recommendations based on your updated taste profile?')) return
     setLoading(true)
+    setError(null)
     const result = await regenerateWithGenesAction()
     setLoading(false)
     if (result.success) {
       router.refresh()
     } else {
-      alert(result.error || 'Failed to regenerate')
+      setError(result.error || 'Failed to regenerate')
     }
   }
 
@@ -79,6 +94,12 @@ export function GeneManager({
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20 mb-4">
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
 
       {expanded ? (
         <div className="space-y-6">

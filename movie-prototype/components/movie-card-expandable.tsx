@@ -5,6 +5,27 @@ import { Button } from './ui/button'
 import { RatingModal } from './rating-modal'
 import { NotInterestedModal } from './not-interested-modal'
 import { RATING_MAP } from '@/lib/constants'
+import type { MovieFeedback, MediaType, TMDBMovieDetails, TMDBTVDetails } from '@/lib/types'
+import { 
+  getRuntime, 
+  getReleaseYear, 
+  getRating, 
+  getCreatorOrDirector, 
+  getCast, 
+  getSeasonInfo 
+} from '@/lib/movie-display-utils'
+
+interface MovieCardExpandableProps {
+  id: string
+  title: string
+  posterUrl: string
+  reasoning: string
+  feedback?: MovieFeedback | null
+  experimental?: boolean
+  movieDetails?: TMDBMovieDetails | TMDBTVDetails | null
+  mediaType?: MediaType
+  matchConfidence?: number
+}
 
 export function MovieCardExpandable({ 
   id,
@@ -14,17 +35,9 @@ export function MovieCardExpandable({
   feedback,
   experimental = false,
   movieDetails,
-  mediaType = 'movie'
-}: { 
-  id: string
-  title: string
-  posterUrl: string
-  reasoning: string
-  feedback?: { status: string; rating?: string; reason?: string } | null
-  experimental?: boolean
-  movieDetails?: any
-  mediaType?: string
-}) {
+  mediaType = 'movie',
+  matchConfidence
+}: MovieCardExpandableProps) {
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -35,26 +48,12 @@ export function MovieCardExpandable({
   }
 
   const isTV = mediaType === 'tv'
-  
-  const runtime = isTV 
-    ? (movieDetails?.episode_run_time?.[0] ? `${movieDetails.episode_run_time[0]}min/ep` : null)
-    : (movieDetails?.runtime ? `${Math.floor(movieDetails.runtime / 60)}h ${movieDetails.runtime % 60}m` : null)
-
-  const year = isTV 
-    ? movieDetails?.first_air_date?.split('-')[0]
-    : movieDetails?.release_date?.split('-')[0]
-    
-  const rating = movieDetails?.vote_average?.toFixed(1)
-  
-  const creator = isTV 
-    ? movieDetails?.created_by?.[0]?.name
-    : movieDetails?.credits?.crew?.find((c: any) => c.job === 'Director')?.name
-    
-  const cast = movieDetails?.credits?.cast?.slice(0, 3).map((c: any) => c.name).join(', ')
-  
-  const seasons = isTV && movieDetails?.number_of_seasons 
-    ? `${movieDetails.number_of_seasons} season${movieDetails.number_of_seasons > 1 ? 's' : ''}`
-    : null
+  const runtime = getRuntime(movieDetails || null, isTV)
+  const year = getReleaseYear(movieDetails || null, isTV)
+  const rating = getRating(movieDetails || null)
+  const creator = getCreatorOrDirector(movieDetails || null, isTV)
+  const cast = getCast(movieDetails || null)
+  const seasons = getSeasonInfo(movieDetails || null, isTV)
 
   return (
     <>
@@ -86,7 +85,23 @@ export function MovieCardExpandable({
 
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-semibold text-sm line-clamp-2 flex-1">{title}</h3>
+            <div className="flex-1">
+              <h3 className="font-semibold text-sm line-clamp-2">{title}</h3>
+              
+              {/* Match percentage badge */}
+              {matchConfidence && (
+                <div className="flex items-center gap-1 mt-1">
+                  <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    matchConfidence >= 85 ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
+                    matchConfidence >= 70 ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400' :
+                    'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                  }`}>
+                    {matchConfidence}% Match
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <div className="flex flex-col items-end gap-1">
               <span className={`text-xs px-1.5 py-0.5 rounded ${
                 isTV ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'

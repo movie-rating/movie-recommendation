@@ -2,7 +2,7 @@ export type MediaType = 'movie' | 'tv'
 
 export type Rating = 'loved' | 'liked' | 'meh' | 'hated'
 
-export type FeedbackStatus = 'to_watch' | 'watched' | 'not_interested'
+export type FeedbackStatus = 'to_watch' | 'watched' | 'not_interested' | 'watchlist'
 
 export interface TasteGene {
   id: string

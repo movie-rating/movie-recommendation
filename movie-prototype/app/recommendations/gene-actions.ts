@@ -9,6 +9,9 @@ export async function updateGeneAction(
   geneId: string,
   updates: { strength?: number; is_dealbreaker?: boolean }
 ) {
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gene-actions.ts:8',message:'updateGeneAction called',data:{geneId,updates},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   const sessionId = await getSessionId()
   if (!sessionId) return { success: false, error: 'No session' }
 
@@ -22,6 +25,10 @@ export async function updateGeneAction(
     })
     .eq('id', geneId)
     .eq('session_id', sessionId)
+
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gene-actions.ts:26',message:'Gene update result',data:{success:!error,error:error?.message,errorDetails:error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H5'})}).catch(()=>{});
+  // #endregion
 
   if (error) {
     console.error('Error updating gene:', error)

@@ -88,11 +88,15 @@ export default async function RecommendationsPage() {
     .eq('session_id', sessionId)
     .single()
 
-  const { data: tasteGenes } = await supabase
+  const { data: tasteGenes, error: genesError } = await supabase
     .from('taste_genes')
     .select('*')
     .eq('session_id', sessionId)
     .order('strength', { ascending: false })
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:91',message:'Fetched taste genes',data:{sessionId,geneCount:tasteGenes?.length || 0,hasError:!!genesError,error:genesError?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
 
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()

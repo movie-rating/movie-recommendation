@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
 import type { RecommendationWithFeedback, TasteProfile, TasteGene } from '@/lib/types'
 
-type TabId = 'to_watch' | 'watched' | 'not_interested'
+type TabId = 'to_watch' | 'watchlist' | 'watched' | 'not_interested'
 
 export function RecommendationsTabs({ 
   recommendations,
@@ -26,11 +26,18 @@ export function RecommendationsTabs({
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations-tabs.tsx:29',message:'Filtering recommendations',data:{totalRecs:recommendations.length,withFeedback:recommendations.filter(r=>r.feedback).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H4'})}).catch(()=>{});
+  // #endregion
   const toWatch = recommendations
     .filter(r => !r.feedback)
     .sort((a, b) => (b.match_confidence || 0) - (a.match_confidence || 0))
+  const watchlist = recommendations.filter(r => r.feedback?.status === 'watchlist')
   const watched = recommendations.filter(r => r.feedback?.status === 'watched')
   const notInterested = recommendations.filter(r => r.feedback?.status === 'not_interested')
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations-tabs.tsx:37',message:'Filtered counts',data:{toWatch:toWatch.length,watchlist:watchlist.length,watched:watched.length,notInterested:notInterested.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+  // #endregion
   
   const experimental = toWatch.filter(r => r.is_experimental)
   const regular = toWatch.filter(r => !r.is_experimental)
@@ -49,12 +56,14 @@ export function RecommendationsTabs({
   }
 
   const tabs = [
-    { id: 'to_watch' as TabId, label: 'To Watch', count: toWatch.length },
+    { id: 'to_watch' as TabId, label: 'New Recommendations', count: toWatch.length },
+    { id: 'watchlist' as TabId, label: 'My Watchlist', count: watchlist.length },
     { id: 'watched' as TabId, label: 'Already Watched', count: watched.length },
     { id: 'not_interested' as TabId, label: 'Not Interested', count: notInterested.length },
   ]
 
   const currentMovies = activeTab === 'to_watch' ? toWatch 
+    : activeTab === 'watchlist' ? watchlist
     : activeTab === 'watched' ? watched 
     : notInterested
 
@@ -187,7 +196,7 @@ export function RecommendationsTabs({
                 Generating...
               </span>
             ) : (
-              `✨ Load ${THRESHOLDS.TOTAL_RECOMMENDATIONS} More Refined Recommendations`
+              `🔄 Refresh Recommendations (${THRESHOLDS.TOTAL_RECOMMENDATIONS} New)`
             )}
           </Button>
           <p className="text-sm text-muted-foreground mt-2">

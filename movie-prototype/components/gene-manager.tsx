@@ -36,7 +36,13 @@ export function GeneManager({
 
   const handleBoost = async (geneId: string, currentStrength: number) => {
     if (currentStrength >= 5) return
-    await updateGeneAction(geneId, { strength: Math.min(currentStrength + 1, 5) })
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gene-manager.tsx:26',message:'Boost clicked',data:{geneId,currentStrength,newStrength:currentStrength+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    const result = await updateGeneAction(geneId, { strength: Math.min(currentStrength + 1, 5) })
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gene-manager.tsx:30',message:'Boost result',data:{success:result.success,error:result.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H2'})}).catch(()=>{});
+    // #endregion
     router.refresh()
   }
 
@@ -116,6 +122,12 @@ export function GeneManager({
                         {gene.gene_name.replace(/_/g, ' ')}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">{gene.description}</p>
+                      {gene.source_movie_title && (
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          From: {gene.source_movie_title}
+                          {gene.source_rating && ` (${gene.source_rating})`}
+                        </p>
+                      )}
                       {gene.is_dealbreaker && (
                         <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-primary/20 text-primary rounded">
                           Dealbreaker
@@ -190,6 +202,12 @@ export function GeneManager({
                         {gene.gene_name.replace(/_/g, ' ')}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">{gene.description}</p>
+                      {gene.source_movie_title && (
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          From: {gene.source_movie_title}
+                          {gene.source_rating && ` (${gene.source_rating})`}
+                        </p>
+                      )}
                       {gene.is_dealbreaker && (
                         <span className="inline-block mt-2 text-xs px-2 py-0.5 bg-destructive/20 text-destructive rounded">
                           Hard Dealbreaker

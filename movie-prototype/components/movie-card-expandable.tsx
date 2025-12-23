@@ -14,6 +14,8 @@ import {
   getCast, 
   getSeasonInfo 
 } from '@/lib/movie-display-utils'
+import { saveFeedbackAction, removeFeedbackAction } from '@/app/recommendations/actions'
+import { useRouter } from 'next/navigation'
 
 interface MovieCardExpandableProps {
   id: string
@@ -41,6 +43,30 @@ export function MovieCardExpandable({
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const router = useRouter()
+
+  const handleAddToWatchlist = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:48',message:'Watchlist clicked',data:{movieId:id,title:title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+    const result = await saveFeedbackAction(id, 'watchlist')
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:51',message:'Watchlist action result',data:{success:result.success,error:result.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    if (result.success) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:54',message:'Calling router.refresh',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      router.refresh()
+    }
+  }
+
+  const handleRemoveFromWatchlist = async () => {
+    const result = await removeFeedbackAction(id)
+    if (result.success) {
+      router.refresh()
+    }
+  }
 
   const getRatingDisplay = () => {
     if (!feedback?.rating) return null
@@ -156,6 +182,22 @@ export function MovieCardExpandable({
             </div>
           )}
 
+          {feedback?.status === 'watchlist' && (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-primary">
+                ✓ In Your Watchlist
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRemoveFromWatchlist}
+                className="w-full text-xs h-8"
+              >
+                Remove from Watchlist
+              </Button>
+            </div>
+          )}
+
           {feedback?.status === 'not_interested' && !feedback?.rating && (
             <div className="text-xs font-medium text-muted-foreground">
               🚫 Not Interested
@@ -169,23 +211,33 @@ export function MovieCardExpandable({
           )}
           
           {!feedback && (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <Button 
                 size="sm" 
-                variant="outline"
-                onClick={() => setShowRatingModal(true)}
-                className="flex-1 text-xs h-8"
+                variant="default"
+                onClick={handleAddToWatchlist}
+                className="w-full text-xs h-8"
               >
-                Watched
+                + Watchlist
               </Button>
-              <Button 
-                size="sm" 
-                variant="ghost"
-                onClick={() => setShowNotInterestedModal(true)}
-                className="flex-1 text-xs h-8"
-              >
-                Skip
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setShowRatingModal(true)}
+                  className="flex-1 text-xs h-8"
+                >
+                  Watched
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={() => setShowNotInterestedModal(true)}
+                  className="flex-1 text-xs h-8"
+                >
+                  Skip
+                </Button>
+              </div>
             </div>
           )}
         </div>

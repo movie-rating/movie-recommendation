@@ -93,8 +93,11 @@ export async function upsertTasteGene(
     .single()
 
   if (existing) {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'db-helpers.ts:27',message:'Updating existing gene',data:{geneId:existing.id,geneName:gene.gene_name,oldStrength:existing.strength,newStrength:gene.strength},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     // Update existing gene
-    return supabase
+    const result = await supabase
       .from('taste_genes')
       .update({
         strength: gene.strength,
@@ -103,12 +106,23 @@ export async function upsertTasteGene(
         updated_at: new Date().toISOString()
       })
       .eq('id', existing.id)
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'db-helpers.ts:38',message:'Gene update result',data:{success:!result.error,error:result.error?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H5'})}).catch(()=>{});
+    // #endregion
+    return result
   } else {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'db-helpers.ts:44',message:'Inserting new gene',data:{sessionId,geneName:gene.gene_name,strength:gene.strength,isNegative:gene.is_negative,isDealbreaker:gene.is_dealbreaker},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     // Insert new gene
-    return supabase.from('taste_genes').insert({
+    const result = await supabase.from('taste_genes').insert({
       session_id: sessionId,
       ...gene
     })
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'db-helpers.ts:52',message:'Gene insert result',data:{success:!result.error,error:result.error?.message,errorDetails:result.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H5'})}).catch(()=>{});
+    // #endregion
+    return result
   }
 }
 

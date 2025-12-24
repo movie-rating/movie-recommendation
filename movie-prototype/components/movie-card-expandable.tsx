@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Button } from './ui/button'
 import { RatingModal } from './rating-modal'
 import { NotInterestedModal } from './not-interested-modal'
+import { SuccessToast } from './success-toast'
+import { BookmarkPlus, Star, XCircle } from 'lucide-react'
 import { RATING_MAP } from '@/lib/constants'
 import type { MovieFeedback, MediaType, TMDBMovieDetails, TMDBTVDetails } from '@/lib/types'
 import { 
@@ -22,6 +24,7 @@ interface MovieCardExpandableProps {
   title: string
   posterUrl: string
   reasoning: string
+  matchExplanation?: string
   feedback?: MovieFeedback | null
   experimental?: boolean
   movieDetails?: TMDBMovieDetails | TMDBTVDetails | null
@@ -34,6 +37,7 @@ export function MovieCardExpandable({
   title, 
   posterUrl, 
   reasoning,
+  matchExplanation,
   feedback,
   experimental = false,
   movieDetails,
@@ -43,6 +47,8 @@ export function MovieCardExpandable({
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [showSuccessToast, setShowSuccessToast] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const router = useRouter()
 
   const handleAddToWatchlist = async () => {
@@ -57,6 +63,8 @@ export function MovieCardExpandable({
       // #region agent log
       fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:54',message:'Calling router.refresh',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
       // #endregion
+      setSuccessMessage('Added to watchlist')
+      setShowSuccessToast(true)
       router.refresh()
     }
   }
@@ -64,6 +72,8 @@ export function MovieCardExpandable({
   const handleRemoveFromWatchlist = async () => {
     const result = await removeFeedbackAction(id)
     if (result.success) {
+      setSuccessMessage('Removed from watchlist')
+      setShowSuccessToast(true)
       router.refresh()
     }
   }
@@ -83,7 +93,7 @@ export function MovieCardExpandable({
 
   return (
     <>
-      <div className="group">
+      <div className="group fade-in">
         {experimental && (
           <div className="mb-2">
             <span className="text-xs px-2 py-1 bg-primary/20 text-primary rounded-full">
@@ -92,7 +102,7 @@ export function MovieCardExpandable({
           </div>
         )}
         <div 
-          className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted mb-3 shadow-md cursor-pointer"
+          className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted mb-3 shadow-md cursor-pointer hover-lift hover-glow smooth-transition"
           onClick={() => setExpanded(!expanded)}
         >
           <Image
@@ -172,7 +182,21 @@ export function MovieCardExpandable({
                 <p className="text-muted-foreground line-clamp-3">{movieDetails.overview}</p>
               )}
               
-              <p className="text-primary italic">{reasoning}</p>
+              {matchExplanation && (
+                <div className="border-t pt-3 mt-3 space-y-2">
+                  <p className="font-semibold text-sm">Why We Recommend This:</p>
+                  <p className="text-sm text-foreground">{matchExplanation}</p>
+                  {reasoning && (
+                    <p className="text-xs text-muted-foreground italic">
+                      {reasoning}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {!matchExplanation && reasoning && (
+                <p className="text-primary italic">{reasoning}</p>
+              )}
             </div>
           )}
           
@@ -211,33 +235,41 @@ export function MovieCardExpandable({
           )}
           
           {!feedback && (
-            <div className="flex flex-col gap-2">
-              <Button 
-                size="sm" 
-                variant="default"
+            <div className="flex items-center gap-2">
+              {/* Watchlist - Primary Action */}
+              <Button
+                size="sm"
                 onClick={handleAddToWatchlist}
-                className="w-full text-xs h-8"
+                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 bg-green-600 hover:bg-green-700 text-white border-0"
+                aria-label="Add to watchlist"
               >
-                + Watchlist
+                <BookmarkPlus className="h-4 w-4" />
+                <span className="text-xs font-medium">Watchlist</span>
               </Button>
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => setShowRatingModal(true)}
-                  className="flex-1 text-xs h-8"
-                >
-                  Watched
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="ghost"
-                  onClick={() => setShowNotInterestedModal(true)}
-                  className="flex-1 text-xs h-8"
-                >
-                  Skip
-                </Button>
-              </div>
+              
+              {/* Watched - Secondary Action */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowRatingModal(true)}
+                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 border-blue-600/30 text-blue-600 hover:bg-blue-600/10 hover:border-blue-600 dark:text-blue-400 dark:border-blue-500/30 dark:hover:border-blue-500"
+                aria-label="Mark as watched and rate"
+              >
+                <Star className="h-4 w-4" />
+                <span className="text-xs font-medium">Watched</span>
+              </Button>
+              
+              {/* Not Interested - Tertiary Action */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowNotInterestedModal(true)}
+                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+                aria-label="Mark as not interested"
+              >
+                <XCircle className="h-4 w-4" />
+                <span className="text-xs font-medium">Pass</span>
+              </Button>
             </div>
           )}
         </div>
@@ -258,6 +290,12 @@ export function MovieCardExpandable({
           onClose={() => setShowNotInterestedModal(false)}
         />
       )}
+
+      <SuccessToast 
+        message={successMessage}
+        show={showSuccessToast}
+        onClose={() => setShowSuccessToast(false)}
+      />
     </>
   )
 }

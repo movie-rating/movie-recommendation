@@ -66,3 +66,68 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-transform duration-200 ease-out hover:-translate-y-1;
+  }
+  
+  .hover-glow {
+    @apply transition-shadow duration-200 hover:shadow-lg hover:shadow-primary/10;
+  }
+  
+  .hover-scale {
+    @apply transition-transform duration-200 ease-out hover:scale-105;
+  }
+
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  
+  .fade-in-fast {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  /* Slide animations */
+  .slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  /* Smooth transitions */
+  .smooth-transition {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  /* Typography enhancements */
+  .text-gradient {
+    @apply bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent;
+  }
+  
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(8px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(16px); 
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0); 
+  }
+}

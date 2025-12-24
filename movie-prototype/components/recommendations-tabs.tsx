@@ -7,6 +7,7 @@ import { generateMoreRecommendationsAction } from '@/app/recommendations/actions
 import { useRouter } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
 import type { RecommendationWithFeedback, TasteProfile, TasteGene } from '@/lib/types'
+import { RegenerateModal } from './regenerate-modal'
 
 type TabId = 'to_watch' | 'watchlist' | 'watched' | 'not_interested'
 
@@ -24,6 +25,7 @@ export function RecommendationsTabs({
   const [activeTab, setActiveTab] = useState<TabId>('to_watch')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showLoadMoreModal, setShowLoadMoreModal] = useState(false)
   const router = useRouter()
 
   // #region agent log
@@ -42,13 +44,14 @@ export function RecommendationsTabs({
   const experimental = toWatch.filter(r => r.is_experimental)
   const regular = toWatch.filter(r => !r.is_experimental)
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = async (guidance: string) => {
     setLoading(true)
     setError(null)
-    const result = await generateMoreRecommendationsAction()
+    const result = await generateMoreRecommendationsAction(guidance)
     setLoading(false)
     
     if (result.success) {
+      setShowLoadMoreModal(false)
       router.refresh()
     } else {
       setError(result.error || 'Failed to generate recommendations')
@@ -112,6 +115,7 @@ export function RecommendationsTabs({
                         title={rec.movie_title}
                         posterUrl={rec.posterUrl}
                         reasoning={rec.reasoning}
+                        matchExplanation={rec.match_explanation}
                         feedback={rec.feedback}
                         movieDetails={rec.movieDetails}
                         mediaType={rec.media_type}
@@ -140,6 +144,7 @@ export function RecommendationsTabs({
                         title={rec.movie_title}
                         posterUrl={rec.posterUrl}
                         reasoning={rec.reasoning}
+                        matchExplanation={rec.match_explanation}
                         feedback={rec.feedback}
                         experimental={true}
                         movieDetails={rec.movieDetails}
@@ -167,6 +172,7 @@ export function RecommendationsTabs({
                 title={rec.movie_title}
                 posterUrl={rec.posterUrl}
                 reasoning={rec.reasoning}
+                matchExplanation={rec.match_explanation}
                 feedback={rec.feedback}
                 movieDetails={rec.movieDetails}
                 mediaType={rec.media_type}
@@ -187,7 +193,7 @@ export function RecommendationsTabs({
           )}
           <Button 
             size="lg"
-            onClick={handleLoadMore}
+            onClick={() => setShowLoadMoreModal(true)}
             disabled={loading}
           >
             {loading ? (
@@ -204,6 +210,13 @@ export function RecommendationsTabs({
           </p>
         </div>
       )}
+
+      <RegenerateModal
+        isOpen={showLoadMoreModal}
+        onClose={() => setShowLoadMoreModal(false)}
+        onSubmit={handleLoadMore}
+        loading={loading}
+      />
     </div>
   )
 }

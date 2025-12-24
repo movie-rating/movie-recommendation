@@ -93,10 +93,34 @@ export function MovieInputForm() {
     movies.every(m => m.title.trim() && m.reason.trim()) &&
     !loading
 
+  const completedCount = movies.filter(m => m.title.trim() && m.reason.trim()).length
+  const progressPercent = Math.min(100, (completedCount / THRESHOLDS.MIN_MOVIES_ONBOARDING) * 100)
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <div className="mb-8">
+        <div className="flex items-center justify-between text-sm mb-2">
+          <span className="text-muted-foreground">Your Progress</span>
+          <span className="font-medium">
+            {completedCount}/{THRESHOLDS.MIN_MOVIES_ONBOARDING} completed
+          </span>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-500 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        {completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING && (
+          <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+            <span>✓</span> Ready to generate recommendations!
+          </p>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
       {movies.map((movie, idx) => (
-        <div key={idx} className="border rounded-lg p-6 space-y-4 bg-card">
+        <div key={idx} className="border rounded-lg p-6 space-y-4 bg-card fade-in hover-glow">
           <div className="flex gap-4 items-start">
             <div className="flex-1">
               <Label htmlFor={`title-${idx}`}>Movie or TV Show</Label>
@@ -211,6 +235,7 @@ export function MovieInputForm() {
         </p>
       )}
     </form>
+    </>
   )
 }
 

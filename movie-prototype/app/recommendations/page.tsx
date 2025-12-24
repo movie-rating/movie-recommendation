@@ -2,11 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionId } from '@/lib/session'
 import { getPosterUrl } from '@/lib/tmdb'
 import { RecommendationsTabs } from '@/components/recommendations-tabs'
+import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
+import { getGeneSources } from '@/lib/db-helpers'
 
 export const metadata: Metadata = {
   title: 'Your Watch List | AI-Powered Recommendations',
@@ -98,16 +100,43 @@ export default async function RecommendationsPage() {
   fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:91',message:'Fetched taste genes',data:{sessionId,geneCount:tasteGenes?.length || 0,hasError:!!genesError,error:genesError?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
   // #endregion
 
+  // Fetch sources for genes with multiple sources (optimized single query)
+  const geneIds = (tasteGenes || [])
+    .filter(g => g.source_count && g.source_count > 1)
+    .map(g => g.id)
+  
+  let sourcesByGeneId: Record<string, any[]> = {}
+  if (geneIds.length > 0) {
+    const { data: allSources } = await supabase
+      .from('gene_sources')
+      .select('*')
+      .in('gene_id', geneIds)
+      .order('contributed_at', { ascending: false })
+    
+    // Group sources by gene_id
+    sourcesByGeneId = (allSources || []).reduce((acc, source) => {
+      if (!acc[source.gene_id]) acc[source.gene_id] = []
+      acc[source.gene_id].push(source)
+      return acc
+    }, {} as Record<string, any[]>)
+  }
+
+  const genesWithSources = (tasteGenes || []).map(gene => ({
+    ...gene,
+    sources: sourcesByGeneId[gene.id] || undefined
+  }))
+
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Your Watch List</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-4xl md:text-5xl font-bold mb-3">Your Watch List</h1>
+            <p className="text-lg text-muted-foreground">
               {ratedCount >= THRESHOLDS.MIN_RATINGS_FOR_MORE 
                 ? `${ratedCount} titles rated - you can load more!`
                 : `Rate ${THRESHOLDS.MIN_RATINGS_FOR_MORE - ratedCount} more to unlock new recommendations`
@@ -126,7 +155,7 @@ export default async function RecommendationsPage() {
           recommendations={recsWithFeedback}
           ratedCount={ratedCount}
           tasteProfile={profile}
-          topGenes={tasteGenes || []}
+          topGenes={genesWithSources}
         />
 
         <div className="mt-12 text-center space-x-4">

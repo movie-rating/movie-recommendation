@@ -74,9 +74,10 @@ export async function deleteGeneAction(geneId: string) {
   return { success: true }
 }
 
-export async function regenerateWithGenesAction() {
+export async function regenerateWithGenesAction(userGuidance?: string) {
   return generateNewRecommendations({
-    minGenesRequired: THRESHOLDS.MIN_GENES_FOR_REGENERATE
+    minGenesRequired: THRESHOLDS.MIN_GENES_FOR_REGENERATE,
+    userGuidance
   })
 }
 

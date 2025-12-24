@@ -255,7 +255,7 @@ export async function updateGenesFromRecentFeedbackAction() {
   return { success: true }
 }
 
-export async function generateMoreRecommendationsAction() {
+export async function generateMoreRecommendationsAction(userGuidance?: string) {
   // Step 1: Update genes from recent feedback
   await updateGenesFromRecentFeedbackAction()
   
@@ -267,7 +267,8 @@ export async function generateMoreRecommendationsAction() {
   
   // Step 3: Generate new recommendations with updated genes
   return generateNewRecommendations({
-    minRatingsRequired: THRESHOLDS.MIN_RATINGS_FOR_MORE
+    minRatingsRequired: THRESHOLDS.MIN_RATINGS_FOR_MORE,
+    userGuidance
   })
 }
 

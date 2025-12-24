@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { RATING_MAP_UPPER, THRESHOLDS, GENE_STRENGTH } from './constants'
+import { RATING_MAP_UPPER, THRESHOLDS, GENE_STRENGTH, RECOMMENDATION_GENERATION } from './constants'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
 export async function generateRecommendations(
   movies: Array<{ title: string; sentiment: string; reason: string }>
-) {
+): Promise<AIRecommendation[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
   
   const prompt = `You are an entertainment expert. Based on these ratings, suggest exactly ${THRESHOLDS.TOTAL_RECOMMENDATIONS} movies or TV shows they would enjoy.
@@ -40,7 +40,7 @@ export async function extractTasteGenes(
   
   const isNegative = rating === 'meh' || rating === 'hated'
   
-  const prompt = `You are a taste profiling expert. Analyze this movie feedback and extract 2-4 "taste genes" - specific preference patterns.
+  const prompt = `You are a taste profiling expert. Analyze this movie feedback and extract taste genes - specific preference patterns.
 
 Movie: "${movieTitle}"
 Rating: ${rating.toUpperCase()}
@@ -49,7 +49,17 @@ ${reason ? `User's reasoning: "${reason}"` : 'User provided no detailed reasonin
 ${existingGenes.length > 0 ? `Known genes from previous feedback:
 ${existingGenes.map(g => `- ${g.gene_name} (strength: ${g.strength}/5)${g.is_negative ? ' [AVOID]' : ''}: ${g.description}`).join('\n')}
 
-Update strengths if this feedback validates existing genes, or add new genes if you discover new patterns.` : ''}
+CRITICAL - GENE CONSOLIDATION:
+Before creating a new gene, check if any existing gene captures the same pattern.
+If your new insight matches an existing gene, return the EXISTING gene name with updated strength.
+DO NOT create synonyms (e.g., if "period_setting" exists, don't create "historical_atmosphere").
+Only create NEW genes for genuinely different preference patterns.` : ''}
+
+Extract 1-6 taste genes depending on how much this movie reveals about their preferences:
+- Extract MORE genes (4-6) if the movie/reasoning reveals multiple clear patterns
+- Extract FEWER genes (1-3) if the signal is weak or the movie is straightforward
+- Prioritize HIGH-CONFIDENCE patterns only
+- Quality over quantity - only extract genes you're confident about
 
 Extract taste genes following these rules:
 1. Gene names: lowercase_with_underscores
@@ -84,11 +94,13 @@ Respond with ONLY valid JSON:
 
 export async function generateDiverseRecommendations(
   originalMovies: Array<{ movie_title: string; sentiment: string; reason: string }>,
-  tasteGenes: Array<{ gene_name: string; strength: number; is_dealbreaker: boolean; is_negative: boolean; description: string }>,
+  tasteGenes: Array<{ gene_name: string; strength: number; is_dealbreaker: boolean; is_negative: boolean; description: string; source_count?: number; source_multiplier?: number }>,
   tasteProfile: string,
   existingMovieTitles: string[],
-  type: 'safe' | 'experimental'
-) {
+  type: 'safe' | 'experimental',
+  strictMode: boolean = false,
+  userGuidance?: string
+): Promise<AIRecommendation[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
   
   const count = type === 'safe' ? THRESHOLDS.SAFE_RECOMMENDATIONS : THRESHOLDS.EXPERIMENTAL_RECOMMENDATIONS
@@ -96,17 +108,61 @@ export async function generateDiverseRecommendations(
   const negativeGenes = tasteGenes.filter(g => g.is_negative && g.strength >= GENE_STRENGTH.THRESHOLD_NEGATIVE)
   const positiveGenes = tasteGenes.filter(g => !g.is_negative && g.strength >= GENE_STRENGTH.THRESHOLD_STRONG && !g.is_dealbreaker)
   
+  // Build guidance section for prompt
+  const guidanceSection = userGuidance 
+    ? `
+
+USER'S SPECIFIC DIRECTION FOR THIS BATCH:
+"${userGuidance}"
+
+IMPORTANT: Blend this guidance with their taste DNA.
+- Find recommendations that satisfy BOTH their core preferences AND this specific direction
+- Still respect dealbreakers and strong negative preferences
+- If guidance conflicts with taste genes, find creative overlap or adjacent matches
+- Example: If user loves period dramas but asks for sci-fi, suggest thoughtful, character-driven sci-fi
+`
+    : ''
+
+  // Build exclusion section for prompt
+  const maxTitlesToShow = strictMode ? RECOMMENDATION_GENERATION.EXCLUSION_LIST_STRICT : RECOMMENDATION_GENERATION.EXCLUSION_LIST_NORMAL
+  const exclusionSection = existingMovieTitles.length > 0 
+    ? `
+
+${strictMode ? '⚠️ CRITICAL - STRICT MODE ⚠️' : ''}
+DO NOT RECOMMEND - Already in their system (${existingMovieTitles.length} titles):
+${strictMode ? 'This is a RETRY. The previous attempt had too many duplicates.' : ''}
+These movies/shows have already been suggested, watched, or are in their watchlist.
+You MUST avoid recommending ANY of these titles:
+${existingMovieTitles.slice(0, maxTitlesToShow).map(title => `- ${title}`).join('\n')}
+${existingMovieTitles.length > maxTitlesToShow ? `... and ${existingMovieTitles.length - maxTitlesToShow} more titles to avoid` : ''}
+
+${strictMode ? 'VERIFY EACH RECOMMENDATION: Before including any title, explicitly check it against the exclusion list above.' : 'CRITICAL: Before including any recommendation, verify it\'s NOT in the above list.'}
+`
+    : ''
+  
   const prompt = type === 'safe' 
     ? `You are an entertainment expert. Generate ${count} movie or TV show recommendations that align closely with this user's taste profile.
 
 TASTE PROFILE:
 ${tasteProfile}
+${guidanceSection}
+${exclusionSection}
 
-WHAT THEY ENJOY (Strength 4-5):
-${positiveGenes.map(g => `- ${g.gene_name}: ${g.description}`).join('\n')}
+WHAT THEY ENJOY (Strength 4-5, with multi-source validation):
+${positiveGenes.map(g => {
+  const sourceInfo = g.source_count && g.source_count > 1 
+    ? ` [${g.source_count}x validated - HIGH CONFIDENCE]` 
+    : ''
+  return `- ${g.gene_name} (strength: ${g.strength}/5${sourceInfo}): ${g.description}`
+}).join('\n')}
 
-${negativeGenes.length > 0 ? `WHAT TO AVOID (Strength 3+):
-${negativeGenes.map(g => `- ${g.gene_name}: ${g.description}`).join('\n')}` : ''}
+${negativeGenes.length > 0 ? `WHAT TO AVOID (Strength 3+, with multi-source validation):
+${negativeGenes.map(g => {
+  const sourceInfo = g.source_count && g.source_count > 1 
+    ? ` [${g.source_count}x validated - HIGH CONFIDENCE]` 
+    : ''
+  return `- ${g.gene_name} (strength: ${g.strength}/5${sourceInfo}): ${g.description}`
+}).join('\n')}` : ''}
 
 ${dealbreakers.length > 0 ? `DEALBREAKERS (ABSOLUTE REQUIREMENTS):
 ${dealbreakers.map(g => `- ${g.gene_name}: ${g.description}`).join('\n')}` : ''}
@@ -121,23 +177,44 @@ Ensure variety across the ${count} recommendations:
 
 Generate ${count} movies and TV shows that strongly match their core preferences while maintaining this diversity.
 
-For each recommendation, provide an ai_confidence score (0-100) indicating match strength:
-- 85-95: Excellent alignment with multiple strong taste genes
-- 75-84: Good alignment with their core preferences
-- 70-74: Solid match but less certain
+For each recommendation, provide:
+1. title: Movie or TV show title
+2. year: Release year
+3. reasoning: Brief pitch (max 80 chars)
+4. match_explanation: Conversational explanation mentioning which specific taste genes it aligns with (max 120 chars)
+   Examples:
+   - "This matches your love for period settings and character-driven narratives"
+   - "Combines your preferences for mind-bending plots and intellectual engagement"
+   - "Aligns with your taste for gritty crime dramas while avoiding slow pacing"
+5. ai_confidence: 0-100 match strength
+   - 85-95: Excellent alignment with multiple strong taste genes
+   - 75-84: Good alignment with their core preferences
+   - 70-74: Solid match but less certain
 
 Respond with ONLY valid JSON:
-[{"title": "Movie Name", "year": 2020, "reasoning": "Why it matches their taste (max 100 chars)", "ai_confidence": 85}]`
+[{"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "This matches your love for X and Y", "ai_confidence": 85}]`
     : `You are an entertainment expert. Generate ${count} EXPERIMENTAL movie or TV show recommendations that expand this user's taste.
 
 TASTE PROFILE:
 ${tasteProfile}
+${guidanceSection}
+${exclusionSection}
 
-POSITIVE PREFERENCES:
-${positiveGenes.map(g => `- ${g.gene_name} (${g.strength}/5): ${g.description}`).join('\n')}
+POSITIVE PREFERENCES (with multi-source validation):
+${positiveGenes.map(g => {
+  const sourceInfo = g.source_count && g.source_count > 1 
+    ? ` [${g.source_count}x validated]` 
+    : ''
+  return `- ${g.gene_name} (${g.strength}/5${sourceInfo}): ${g.description}`
+}).join('\n')}
 
-${negativeGenes.length > 0 ? `MUST AVOID (Negative preferences):
-${negativeGenes.map(g => `- ${g.gene_name} (${g.strength}/5): ${g.description}`).join('\n')}` : ''}
+${negativeGenes.length > 0 ? `MUST AVOID (Negative preferences with multi-source validation):
+${negativeGenes.map(g => {
+  const sourceInfo = g.source_count && g.source_count > 1 
+    ? ` [${g.source_count}x validated]` 
+    : ''
+  return `- ${g.gene_name} (${g.strength}/5${sourceInfo}): ${g.description}`
+}).join('\n')}` : ''}
 
 ${dealbreakers.length > 0 ? `DEALBREAKERS (ABSOLUTE):
 ${dealbreakers.map(g => `- ${g.gene_name}: ${g.description}`).join('\n')}` : ''}
@@ -158,29 +235,145 @@ Generate ${count} movies or TV shows that:
 
 These should be "safe experiments" - different but likely to succeed.
 
-For experimental picks, provide ai_confidence scores (0-100):
-- 70-80: Well-reasoned stretch with good potential
-- 60-69: Interesting exploration, moderate confidence
-- 50-59: Bold experiment, lower certainty
+For each experimental recommendation, provide:
+1. title: Movie or TV show title
+2. year: Release year
+3. reasoning: Brief pitch (max 80 chars)
+4. match_explanation: Explain how this explores new territory while respecting their core preferences (max 120 chars)
+   Examples:
+   - "Expands on your love for complex narratives into the sci-fi space"
+   - "Similar character depth to what you enjoy, but in a lighter comedic tone"
+5. ai_confidence: 0-100 match strength
+   - 70-80: Well-reasoned stretch with good potential
+   - 60-69: Interesting exploration, moderate confidence
+   - 50-59: Bold experiment, lower certainty
 
 Respond with ONLY valid JSON:
-[{"title": "Movie Name", "year": 2020, "reasoning": "Why this stretch makes sense (max 100 chars)", "ai_confidence": 70}]`
+[{"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Expands on your love for X into Y", "ai_confidence": 70}]`
 
+  // Log prompt characteristics
+  console.log(`[LLM Start] ${type}${strictMode ? ' [STRICT]' : ''}: Prompt ${(prompt.length/1024).toFixed(1)}KB, ${existingMovieTitles.length} exclusions`)
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:before-api',message:'Calling Gemini',data:{type,strictMode,hasGuidance:!!userGuidance,guidance:userGuidance?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+  
+  // Time the API call
+  const apiStart = Date.now()
   const result = await model.generateContent(prompt)
+  const apiDuration = Date.now() - apiStart
+  console.log(`[LLM API] ${type}: ${apiDuration}ms`)
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:api-response',message:'API returned',data:{type,textLength:result.response.text().length,preview:result.response.text().substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  
   const text = result.response.text()
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
-  const recommendations = JSON.parse(cleaned)
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:before-parse',message:'About to parse JSON',data:{type,cleanedLength:cleaned.length,cleanedPreview:cleaned.substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H3'})}).catch(()=>{});
+  // #endregion
+  
+  try {
+    const recommendations = JSON.parse(cleaned)
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:parse-success',message:'JSON parsed',data:{type,count:recommendations.length,hasMatchExplanation:recommendations[0]?.match_explanation !== undefined},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    return recommendations
+  } catch (parseError) {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:parse-error',message:'JSON parse failed',data:{type,error:parseError instanceof Error ? parseError.message : String(parseError),cleaned:cleaned.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1,H3'})}).catch(()=>{});
+    // #endregion
+    throw parseError
+  }
   
   // Filter duplicates - both against existing and internally
   const existingLower = existingMovieTitles.map(t => t.toLowerCase())
   const seen = new Set<string>()
   
-  return recommendations.filter((r: any) => {
+  const originalCount = recommendations.length
+  const filtered = recommendations.filter((r: AIRecommendation) => {
     const titleLower = r.title.toLowerCase()
     if (existingLower.includes(titleLower)) return false
     if (seen.has(titleLower)) return false
     seen.add(titleLower)
     return true
   })
+  
+  const filteredCount = filtered.length
+  const duplicateCount = originalCount - filteredCount
+  
+  if (duplicateCount > 0) {
+    console.log(`[LLM Filter] ${type}: ${duplicateCount}/${originalCount} duplicates removed`)
+  }
+  
+  return filtered
+}
+
+type AIRecommendation = {
+  title: string
+  year?: number
+  reasoning: string
+  match_explanation: string
+  ai_confidence: number
+}
+
+export async function generateDiverseRecommendationsWithRetry(
+  originalMovies: Array<{ movie_title: string; sentiment: string; reason: string }>,
+  tasteGenes: Array<{ gene_name: string; strength: number; is_dealbreaker: boolean; is_negative: boolean; description: string; source_count?: number; source_multiplier?: number }>,
+  tasteProfile: string,
+  existingMovieTitles: string[],
+  type: 'safe' | 'experimental',
+  userGuidance?: string,
+  maxRetries: number = RECOMMENDATION_GENERATION.MAX_RETRIES
+): Promise<AIRecommendation[]> {
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:retry-wrapper',message:'Retry wrapper called',data:{type,hasGuidance:!!userGuidance,guidancePreview:userGuidance?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H5'})}).catch(()=>{});
+  // #endregion
+  
+  const targetCount = type === 'safe' ? THRESHOLDS.SAFE_RECOMMENDATIONS : THRESHOLDS.EXPERIMENTAL_RECOMMENDATIONS
+  
+  try {
+    // First attempt
+    let recommendations = await generateDiverseRecommendations(
+    originalMovies,
+    tasteGenes,
+    tasteProfile,
+    existingMovieTitles,
+    type,
+    false, // Not strict mode on first attempt
+    userGuidance
+  )
+  
+  // Calculate duplicate rate
+  const duplicateRate = 1 - (recommendations.length / targetCount)
+
+  // If more than threshold were duplicates, retry with stronger instructions
+  if (duplicateRate > RECOMMENDATION_GENERATION.DUPLICATE_RETRY_THRESHOLD && maxRetries > 0) {
+    console.log(`[Retry] ${Math.round(duplicateRate * 100)}% duplicates detected for ${type} recommendations, retrying with strict mode...`)
+    
+    recommendations = await generateDiverseRecommendations(
+      originalMovies,
+      tasteGenes,
+      tasteProfile,
+      existingMovieTitles,
+      type,
+      true, // Strict mode for retry
+      userGuidance
+    )
+  }
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:retry-exit',message:'Returning from retry wrapper',data:{type,count:recommendations.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+  // #endregion
+  
+  return recommendations
+  } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'gemini.ts:retry-error',message:'Error in retry wrapper',data:{type,error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+    throw error
+  }
 }
 

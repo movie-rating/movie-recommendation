@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
+import { SuccessToast } from './success-toast'
 import { saveFeedbackAction } from '@/app/recommendations/actions'
 import { useRouter } from 'next/navigation'
 
@@ -17,6 +18,7 @@ export function NotInterestedModal({
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSuccessToast, setShowSuccessToast] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async () => {
@@ -32,8 +34,9 @@ export function NotInterestedModal({
     setLoading(false)
     
     if (result.success) {
+      setShowSuccessToast(true)
       router.refresh()
-      onClose()
+      setTimeout(onClose, 300) // Small delay to show toast
     } else {
       setError(result.error || 'Failed to save')
     }
@@ -89,6 +92,12 @@ export function NotInterestedModal({
           </div>
         </div>
       </div>
+      
+      <SuccessToast 
+        message="Feedback saved"
+        show={showSuccessToast}
+        onClose={() => setShowSuccessToast(false)}
+      />
     </div>
   )
 }

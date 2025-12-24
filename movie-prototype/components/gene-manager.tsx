@@ -4,6 +4,7 @@ import { Button } from './ui/button'
 import { updateGeneAction, deleteGeneAction, regenerateWithGenesAction } from '@/app/recommendations/gene-actions'
 import { useRouter } from 'next/navigation'
 import type { TasteGene } from '@/lib/types'
+import { RegenerateModal } from './regenerate-modal'
 
 export function GeneManager({ 
   genes,
@@ -15,6 +16,7 @@ export function GeneManager({
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false)
   const router = useRouter()
 
   if (genes.length === 0) {
@@ -63,13 +65,13 @@ export function GeneManager({
     router.refresh()
   }
 
-  const handleRegenerate = async () => {
-    if (!confirm('Generate new recommendations based on your updated taste profile?')) return
+  const handleRegenerate = async (guidance: string) => {
     setLoading(true)
     setError(null)
-    const result = await regenerateWithGenesAction()
+    const result = await regenerateWithGenesAction(guidance)
     setLoading(false)
     if (result.success) {
+      setShowRegenerateModal(false)
       router.refresh()
     } else {
       setError(result.error || 'Failed to regenerate')
@@ -85,7 +87,7 @@ export function GeneManager({
             <Button
               size="sm"
               variant="outline"
-              onClick={handleRegenerate}
+              onClick={() => setShowRegenerateModal(true)}
               disabled={loading}
             >
               {loading ? 'Regenerating...' : '🔄 Regenerate Recs'}
@@ -107,6 +109,13 @@ export function GeneManager({
         </div>
       )}
 
+      <RegenerateModal
+        isOpen={showRegenerateModal}
+        onClose={() => setShowRegenerateModal(false)}
+        onSubmit={handleRegenerate}
+        loading={loading}
+      />
+
       {expanded ? (
         <div className="space-y-6">
           {positiveGenes.length > 0 && (
@@ -115,14 +124,44 @@ export function GeneManager({
                 <span>✓</span> What You Enjoy
               </p>
               <div className="space-y-3">
-                {positiveGenes.map(gene => (
-                  <div key={gene.id} className="flex items-start gap-3 p-3 bg-background rounded-lg border">
+                {positiveGenes.map(gene => {
+                  const isStronglyValidated = gene.source_count && gene.source_count >= 3
+                  return (
+                  <div 
+                    key={gene.id} 
+                    className={`flex items-start gap-3 p-3 bg-background rounded-lg border ${
+                      isStronglyValidated ? 'border-green-500/40 shadow-sm shadow-green-500/20' : ''
+                    }`}
+                  >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">
-                        {gene.gene_name.replace(/_/g, ' ')}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">
+                          {gene.gene_name.replace(/_/g, ' ')}
+                        </p>
+                        {gene.source_count && gene.source_count > 1 && (
+                          <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-700 dark:text-green-300 rounded font-medium">
+                            {gene.source_count}x validated
+                          </span>
+                        )}
+                        {gene.source_multiplier && gene.source_multiplier > 1.0 && (
+                          <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono">
+                            ×{gene.source_multiplier.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">{gene.description}</p>
-                      {gene.source_movie_title && (
+                      {gene.sources && gene.sources.length > 0 ? (
+                        <div className="mt-2 p-2 bg-muted/30 rounded text-xs">
+                          <p className="font-medium mb-1">Validated by {gene.sources.length} movie{gene.sources.length > 1 ? 's' : ''}:</p>
+                          <div className="space-y-0.5">
+                            {gene.sources.map(s => (
+                              <p key={s.id} className="text-muted-foreground">
+                                • {s.source_movie_title} ({s.source_rating})
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : gene.source_movie_title && (
                         <p className="text-xs text-muted-foreground/70 mt-1">
                           From: {gene.source_movie_title}
                           {gene.source_rating && ` (${gene.source_rating})`}
@@ -184,7 +223,8 @@ export function GeneManager({
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -195,14 +235,44 @@ export function GeneManager({
                 <span>✗</span> What to Avoid
               </p>
               <div className="space-y-3">
-                {negativeGenes.map(gene => (
-                  <div key={gene.id} className="flex items-start gap-3 p-3 bg-background rounded-lg border border-red-500/20">
+                {negativeGenes.map(gene => {
+                  const isStronglyValidated = gene.source_count && gene.source_count >= 3
+                  return (
+                  <div 
+                    key={gene.id} 
+                    className={`flex items-start gap-3 p-3 bg-background rounded-lg border border-red-500/20 ${
+                      isStronglyValidated ? 'border-red-500/50 shadow-sm shadow-red-500/20' : ''
+                    }`}
+                  >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">
-                        {gene.gene_name.replace(/_/g, ' ')}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">
+                          {gene.gene_name.replace(/_/g, ' ')}
+                        </p>
+                        {gene.source_count && gene.source_count > 1 && (
+                          <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-700 dark:text-red-300 rounded font-medium">
+                            {gene.source_count}x validated
+                          </span>
+                        )}
+                        {gene.source_multiplier && gene.source_multiplier > 1.0 && (
+                          <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono">
+                            ×{gene.source_multiplier.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">{gene.description}</p>
-                      {gene.source_movie_title && (
+                      {gene.sources && gene.sources.length > 0 ? (
+                        <div className="mt-2 p-2 bg-muted/30 rounded text-xs">
+                          <p className="font-medium mb-1">Validated by {gene.sources.length} movie{gene.sources.length > 1 ? 's' : ''}:</p>
+                          <div className="space-y-0.5">
+                            {gene.sources.map(s => (
+                              <p key={s.id} className="text-muted-foreground">
+                                • {s.source_movie_title} ({s.source_rating})
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : gene.source_movie_title && (
                         <p className="text-xs text-muted-foreground/70 mt-1">
                           From: {gene.source_movie_title}
                           {gene.source_rating && ` (${gene.source_rating})`}
@@ -264,7 +334,8 @@ export function GeneManager({
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -278,10 +349,17 @@ export function GeneManager({
           {positiveGenes.slice(0, 3).map(gene => (
             <div key={gene.id} className="flex items-center gap-2">
               <span className="text-green-600 dark:text-green-400">✓</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  {gene.gene_name.replace(/_/g, ' ')}
-                </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium">
+                    {gene.gene_name.replace(/_/g, ' ')}
+                  </p>
+                  {gene.source_count && gene.source_count > 1 && (
+                    <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-700 dark:text-green-300 rounded">
+                      {gene.source_count}x
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-0.5">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -299,10 +377,17 @@ export function GeneManager({
           {negativeGenes.slice(0, 3).map(gene => (
             <div key={gene.id} className="flex items-center gap-2">
               <span className="text-red-600 dark:text-red-400">✗</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  {gene.gene_name.replace(/_/g, ' ')}
-                </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium">
+                    {gene.gene_name.replace(/_/g, ' ')}
+                  </p>
+                  {gene.source_count && gene.source_count > 1 && (
+                    <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-700 dark:text-red-300 rounded">
+                      {gene.source_count}x
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex gap-0.5">
                 {Array.from({ length: 5 }).map((_, i) => (

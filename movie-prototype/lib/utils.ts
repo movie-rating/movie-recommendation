@@ -32,7 +32,8 @@ export async function enrichWithTMDB(
   recommendations: Array<{ 
     title: string; 
     year?: number; 
-    reasoning?: string; 
+    reasoning?: string;
+    match_explanation?: string;
     confidence?: string;
     ai_confidence?: number 
   }>,
@@ -69,6 +70,7 @@ export async function enrichWithTMDB(
         tmdb_tv_id: mediaType === 'tv' ? tmdb?.id : null,
         movie_title: rec.title,
         reasoning: rec.reasoning,
+        match_explanation: rec.match_explanation,
         poster_path: tmdb?.poster_path,
         number_of_seasons: tmdb?.number_of_seasons,
         number_of_episodes: tmdb?.number_of_episodes,

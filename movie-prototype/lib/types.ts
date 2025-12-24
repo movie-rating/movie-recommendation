@@ -16,6 +16,18 @@ export interface TasteGene {
   source_movie_title?: string
   source_rating?: string
   extracted_at?: string
+  source_count?: number
+  source_multiplier?: number
+  sources?: GeneSource[]
+}
+
+export interface GeneSource {
+  id: string
+  gene_id: string
+  session_id: string
+  source_movie_title: string
+  source_rating: string
+  contributed_at: string
 }
 
 export interface Recommendation {
@@ -25,6 +37,7 @@ export interface Recommendation {
   tmdb_movie_id?: number | null
   tmdb_tv_id?: number | null
   reasoning: string
+  match_explanation?: string
   poster_path: string | null
   is_experimental: boolean
   match_confidence: number

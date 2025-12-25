@@ -5,6 +5,9 @@ import { InfoIcon } from "lucide-react";
 import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
 import { Suspense } from "react";
 
+// Force dynamic rendering since this page requires auth data
+export const dynamic = 'force-dynamic'
+
 async function UserDetails() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();

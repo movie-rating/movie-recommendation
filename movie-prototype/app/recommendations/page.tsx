@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
+import { searchMediaAction } from '@/app/onboarding/actions'
 
 export const metadata: Metadata = {
   title: 'Your Watch List | AI-Powered Recommendations',
@@ -32,6 +33,17 @@ export default async function RecommendationsPage() {
     `)
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
+  
+  // Get user movies (movies added during onboarding or manually added to "Already Watched")
+  const { data: userMovies } = await supabase
+    .from('user_movies')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMoviesQuery',message:'User movies fetched',data:{count:userMovies?.length||0,titles:userMovies?.map(m=>m.movie_title)||[]},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   
   // Fetch TMDB details in parallel with error handling
   const TMDB_KEY = process.env.TMDB_API_KEY
@@ -70,15 +82,149 @@ export default async function RecommendationsPage() {
     redirect('/onboarding')
   }
 
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMoviesBeforeFetch',message:'User movies before TMDB fetch',data:{count:userMovies?.length||0,moviesWithTMDB:userMovies?.filter(m=>m.tmdb_movie_id||m.tmdb_tv_id).length||0,moviesWithoutTMDB:userMovies?.filter(m=>!m.tmdb_movie_id&&!m.tmdb_tv_id).length||0,sample:userMovies?.slice(0,3).map(m=>({title:m.movie_title,hasTmdbId:!!(m.tmdb_movie_id||m.tmdb_tv_id),tmdbMovieId:m.tmdb_movie_id,tmdbTvId:m.tmdb_tv_id,mediaType:m.media_type}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F',runId:'post-fix-v2'})}).catch(()=>{});
+  // #endregion
+  
+  // Fetch TMDB details for user movies
+  const userMovieDetailsPromises = (userMovies || []).map(async (movie) => {
+    const isTV = movie.media_type === 'tv'
+    const tmdbId = isTV ? movie.tmdb_tv_id : movie.tmdb_movie_id
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMovieFetchCheck',message:'Checking TMDB fetch for movie',data:{title:movie.movie_title,tmdbId,isTV,mediaType:movie.media_type,hasTMDBKEY:!!TMDB_KEY,willFetch:!!(tmdbId&&TMDB_KEY)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'I',runId:'post-fix-v2'})}).catch(()=>{});
+    // #endregion
+    
+    // If movie has TMDB ID, fetch details directly
+    if (tmdbId && TMDB_KEY) {
+      try {
+        const endpoint = isTV ? 'tv' : 'movie'
+        const res = await fetch(
+          `https://api.themoviedb.org/3/${endpoint}/${tmdbId}?append_to_response=credits`,
+          { 
+            headers: { Authorization: `Bearer ${TMDB_KEY}` },
+            next: { revalidate: 3600 }
+          }
+        )
+        return res.ok ? res.json() : null
+      } catch (e) {
+        console.error('Error fetching user movie details:', e)
+        return null
+      }
+    }
+    
+    // If no TMDB ID, search by title to get poster using raw TMDB API
+    if (TMDB_KEY) {
+      try {
+        const params = new URLSearchParams({ query: movie.movie_title })
+        const res = await fetch(`https://api.themoviedb.org/3/search/multi?${params}`, {
+          headers: {
+            'Authorization': `Bearer ${TMDB_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          next: { revalidate: 3600 }
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          const result = data.results?.find((r: any) => r.media_type === 'movie' || r.media_type === 'tv')
+          if (result) {
+            // #region agent log
+            fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:tmdbSearchFallback',message:'Found TMDB via search',data:{originalTitle:movie.movie_title,foundTitle:result.media_type==='movie'?result.title:result.name,tmdbId:result.id,mediaType:result.media_type,posterPath:result.poster_path},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX',runId:'post-fix-v2'})}).catch(()=>{});
+            // #endregion
+            // Return a minimal object with poster_path
+            return {
+              poster_path: result.poster_path,
+              id: result.id
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error searching for movie:', e)
+      }
+    }
+    
+    return null
+  })
+  
+  const userMovieDetails = await Promise.allSettled(userMovieDetailsPromises)
+  
+  const userMoviesWithDetails = (userMovies || []).map((movie, index) => ({
+    ...movie,
+    movieDetails: userMovieDetails[index].status === 'fulfilled' ? userMovieDetails[index].value : null
+  }))
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMoviesWithDetails',message:'User movies with details',data:{count:userMoviesWithDetails.length,withDetails:userMoviesWithDetails.filter(m=>m.movieDetails).length,withoutDetails:userMoviesWithDetails.filter(m=>!m.movieDetails).length,sampleWith:userMoviesWithDetails.filter(m=>m.movieDetails).slice(0,3).map(m=>({title:m.movie_title,hasPoster:!!m.movieDetails?.poster_path})),sampleWithout:userMoviesWithDetails.filter(m=>!m.movieDetails).slice(0,3).map(m=>({title:m.movie_title,tmdbMovieId:m.tmdb_movie_id,tmdbTvId:m.tmdb_tv_id,mediaType:m.media_type}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G',runId:'post-fix-v2'})}).catch(()=>{});
+  // #endregion
+
   // Transform data
   const recsWithFeedback = recsWithDetails.map(rec => ({
     ...rec,
     posterUrl: getPosterUrl(rec.poster_path),
     feedback: rec.movie_feedback?.[0] || null
   }))
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:recsWithFeedback',message:'Recommendations with feedback',data:{totalCount:recsWithFeedback.length,watchedCount:recsWithFeedback.filter(r=>r.feedback?.status==='watched').length,watchedTitles:recsWithFeedback.filter(r=>r.feedback?.status==='watched').map(r=>r.movie_title)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  
+  // Get titles of recommendations that are already marked as watched
+  const watchedRecTitles = new Set(
+    recsWithFeedback
+      .filter(r => r.feedback?.status === 'watched')
+      .map(r => r.movie_title.toLowerCase().trim())
+  )
+  
+  // Transform user movies to match recommendation format for display
+  // Filter out user movies that are already in recommendations with watched status
+  const userMoviesAsRecs = userMoviesWithDetails
+    .filter(movie => !watchedRecTitles.has(movie.movie_title.toLowerCase().trim()))
+    .map(movie => {
+      const posterPath = movie.movieDetails?.poster_path || null
+      const posterUrl = getPosterUrl(posterPath)
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMovieTransform',message:'Transforming user movie',data:{title:movie.movie_title,hasMovieDetails:!!movie.movieDetails,posterPath,posterUrl,tmdbId:movie.tmdb_movie_id||movie.tmdb_tv_id,posterUrlIsPlaceholder:posterUrl.includes('svg+xml')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H',runId:'post-fix-v2'})}).catch(()=>{});
+      // #endregion
+      
+      return {
+        id: movie.id,
+        movie_title: movie.movie_title,
+        media_type: movie.media_type || 'movie',
+        tmdb_movie_id: movie.tmdb_movie_id,
+        tmdb_tv_id: movie.tmdb_tv_id,
+        reasoning: movie.reason || '', // Use user's reason as "reasoning"
+        poster_path: posterPath,
+        posterUrl,
+        is_experimental: false,
+        match_confidence: 0,
+        feedback: {
+          status: 'watched' as const,
+          rating: movie.sentiment as any,
+          reason: movie.reason
+        },
+        movieDetails: movie.movieDetails,
+        isUserMovie: true // Flag to identify user-added movies
+      }
+    })
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:userMoviesAsRecs',message:'User movies transformed',data:{count:userMoviesAsRecs.length,titles:userMoviesAsRecs.map(m=>m.movie_title),filteredOutCount:userMoviesWithDetails.length-userMoviesAsRecs.length,watchedRecTitlesArray:Array.from(watchedRecTitles)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX',runId:'post-fix'})}).catch(()=>{});
+  // #endregion
+  
+  // Combine recommendations and user movies
+  const allMovies = [...recsWithFeedback, ...userMoviesAsRecs]
+  
+  // #region agent log
+  const watchedMovies = allMovies.filter(m => m.feedback?.status === 'watched');
+  const titleCounts = watchedMovies.reduce((acc, m) => { acc[m.movie_title] = (acc[m.movie_title] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const duplicates = Object.entries(titleCounts).filter(([_, count]) => count > 1);
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:allMoviesCombined',message:'All movies combined AFTER FIX',data:{totalCount:allMovies.length,watchedCount:watchedMovies.length,duplicateTitles:duplicates,watchedMovieDetails:watchedMovies.map(m=>({title:m.movie_title,id:m.id,isUserMovie:m.isUserMovie||false}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FIX',runId:'post-fix'})}).catch(()=>{});
+  // #endregion
 
-  // Count watched & rated movies
-  const ratedCount = recsWithFeedback.filter(
+  // Count watched & rated movies (from both recommendations and user movies)
+  const ratedCount = allMovies.filter(
     r => r.feedback?.status === 'watched' && r.feedback?.rating
   ).length
 
@@ -88,36 +234,52 @@ export default async function RecommendationsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-3">Your Watch List</h1>
-            <p className="text-lg text-muted-foreground">
-              {ratedCount >= THRESHOLDS.MIN_RATINGS_FOR_MORE 
-                ? `${ratedCount} titles rated - you can load more!`
-                : `Rate ${THRESHOLDS.MIN_RATINGS_FOR_MORE - ratedCount} more to unlock new recommendations`
-              }
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-12">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-8">
+          <div className="flex-1">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-3">
+              Your Watch List
+            </h1>
+            
+            {/* Compact progress on mobile, detailed on desktop */}
+            <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
+              <span className="font-medium">{ratedCount} rated</span>
+              {ratedCount >= THRESHOLDS.MIN_RATINGS_FOR_MORE ? (
+                <span className="text-green-600 dark:text-green-400">• Ready for more!</span>
+              ) : (
+                <span className="hidden sm:inline">
+                  • Rate {THRESHOLDS.MIN_RATINGS_FOR_MORE - ratedCount} more to unlock new recommendations
+                </span>
+              )}
+            </div>
+            
+            {/* Hide tip on mobile, show on desktop */}
+            <p className="hidden sm:block text-sm text-muted-foreground mt-2">
+              💡 Tip: Add movies you've watched in the &quot;Already Watched&quot; tab to improve your recommendations
             </p>
           </div>
           
           {!user && (
-            <Button asChild size="lg">
-              <Link href="/auth/sign-up">Save Progress (Sign Up)</Link>
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href="/auth/sign-up">
+                <span className="hidden sm:inline">Save Progress (Sign Up)</span>
+                <span className="sm:hidden">Sign Up to Save</span>
+              </Link>
             </Button>
           )}
         </div>
 
         <RecommendationsTabs 
-          recommendations={recsWithFeedback}
+          recommendations={allMovies}
           ratedCount={ratedCount}
         />
 
-        <div className="mt-12 text-center space-x-4">
-          <Button variant="outline" asChild>
+        <div className="mt-8 sm:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+          <Button variant="outline" asChild className="w-full sm:w-auto">
             <Link href="/onboarding">Start Over</Link>
           </Button>
           {user && (
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className="w-full sm:w-auto">
               <Link href="/protected">Go to Dashboard</Link>
             </Button>
           )}

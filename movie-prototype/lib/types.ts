@@ -18,6 +18,7 @@ export interface Recommendation {
   number_of_seasons?: number | null
   number_of_episodes?: number | null
   created_at?: string
+  batch_id?: number
 }
 
 export interface MovieFeedback {

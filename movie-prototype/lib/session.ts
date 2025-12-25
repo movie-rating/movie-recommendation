@@ -21,11 +21,11 @@ export async function getOrCreateSession(): Promise<string> {
       throw new Error('Failed to create session')
     }
     
-    if (data) {
+    if (data && data.id) {
       sessionId = data.id
       // Set cookie (this works in Server Actions but not in Server Components)
       try {
-        cookieStore.set(SESSION_COOKIE, sessionId, {
+        cookieStore.set(SESSION_COOKIE, data.id, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           maxAge: 60 * 60 * 24 * 7, // 7 days

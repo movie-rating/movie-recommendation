@@ -30,6 +30,7 @@ interface MovieCardExpandableProps {
   movieDetails?: TMDBMovieDetails | TMDBTVDetails | null
   mediaType?: MediaType
   matchConfidence?: number
+  isUserMovie?: boolean // Flag for user-added movies (not recommendations)
 }
 
 export function MovieCardExpandable({ 
@@ -42,7 +43,8 @@ export function MovieCardExpandable({
   experimental = false,
   movieDetails,
   mediaType = 'movie',
-  matchConfidence
+  matchConfidence,
+  isUserMovie = false
 }: MovieCardExpandableProps) {
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
@@ -120,9 +122,9 @@ export function MovieCardExpandable({
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
-              <h3 className="font-semibold text-sm line-clamp-2">{title}</h3>
+              <h3 className="font-semibold text-base line-clamp-2">{title}</h3>
               
               {/* Match percentage badge */}
               {matchConfidence && (
@@ -150,7 +152,7 @@ export function MovieCardExpandable({
 
           {!expanded ? (
             <>
-              <p className="text-xs text-muted-foreground line-clamp-2">{reasoning}</p>
+              <p className="text-sm text-muted-foreground line-clamp-2">{reasoning}</p>
               
               {(runtime || rating) && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -160,8 +162,8 @@ export function MovieCardExpandable({
               )}
             </>
           ) : (
-            <div className="text-xs space-y-2 pb-2">
-              <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="text-sm space-y-2 pb-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {rating && <span>⭐ {rating}/10</span>}
                 {runtime && <span>• {runtime}</span>}
               </div>
@@ -182,7 +184,14 @@ export function MovieCardExpandable({
                 <p className="text-muted-foreground line-clamp-3">{movieDetails.overview}</p>
               )}
               
-              {matchExplanation && (
+              {isUserMovie && reasoning && (
+                <div className="border-t pt-3 mt-3 space-y-2">
+                  <p className="font-semibold text-sm">Your Thoughts:</p>
+                  <p className="text-sm text-foreground italic">&quot;{reasoning}&quot;</p>
+                </div>
+              )}
+              
+              {!isUserMovie && matchExplanation && (
                 <div className="border-t pt-3 mt-3 space-y-2">
                   <p className="font-semibold text-sm">Why We Recommend This:</p>
                   <p className="text-sm text-foreground">{matchExplanation}</p>
@@ -194,21 +203,21 @@ export function MovieCardExpandable({
                 </div>
               )}
               
-              {!matchExplanation && reasoning && (
+              {!isUserMovie && !matchExplanation && reasoning && (
                 <p className="text-primary italic">{reasoning}</p>
               )}
             </div>
           )}
           
           {feedback?.rating && (
-            <div className="text-xs font-medium text-primary">
+            <div className="text-sm font-medium text-primary">
               {getRatingDisplay()}
             </div>
           )}
 
-          {feedback?.status === 'watchlist' && (
+          {feedback?.status === 'watchlist' && !isUserMovie && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-primary">
+              <div className="text-sm font-medium text-primary">
                 ✓ In Your Watchlist
               </div>
               <Button
@@ -222,54 +231,51 @@ export function MovieCardExpandable({
             </div>
           )}
 
-          {feedback?.status === 'not_interested' && !feedback?.rating && (
-            <div className="text-xs font-medium text-muted-foreground">
+          {feedback?.status === 'not_interested' && !feedback?.rating && !isUserMovie && (
+            <div className="text-sm font-medium text-muted-foreground">
               🚫 Not Interested
             </div>
           )}
 
           {feedback?.reason && (
-            <p className="text-xs text-muted-foreground italic line-clamp-2">
+            <p className="text-sm text-muted-foreground italic line-clamp-2">
               &quot;{feedback.reason}&quot;
             </p>
           )}
           
-          {!feedback && (
-            <div className="flex items-center gap-2">
-              {/* Watchlist - Primary Action */}
+          {!feedback && !isUserMovie && (
+            <div className="space-y-2">
+              {/* Primary Action - Watchlist */}
               <Button
-                size="sm"
+                size="lg"
                 onClick={handleAddToWatchlist}
-                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 bg-green-600 hover:bg-green-700 text-white border-0"
+                className="w-full min-h-[52px] bg-green-600 hover:bg-green-700 text-white shadow-sm active:scale-[0.98] transition-transform"
                 aria-label="Add to watchlist"
               >
-                <BookmarkPlus className="h-4 w-4" />
-                <span className="text-xs font-medium">Watchlist</span>
+                <BookmarkPlus className="h-5 w-5 mr-2" />
+                <span className="font-semibold">Add to Watchlist</span>
               </Button>
               
-              {/* Watched - Secondary Action */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowRatingModal(true)}
-                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 border-blue-600/30 text-blue-600 hover:bg-blue-600/10 hover:border-blue-600 dark:text-blue-400 dark:border-blue-500/30 dark:hover:border-blue-500"
-                aria-label="Mark as watched and rate"
-              >
-                <Star className="h-4 w-4" />
-                <span className="text-xs font-medium">Watched</span>
-              </Button>
-              
-              {/* Not Interested - Tertiary Action */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowNotInterestedModal(true)}
-                className="flex-1 h-auto py-2.5 flex flex-col gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
-                aria-label="Mark as not interested"
-              >
-                <XCircle className="h-4 w-4" />
-                <span className="text-xs font-medium">Pass</span>
-              </Button>
+              {/* Secondary actions as text links */}
+              <div className="flex items-center justify-center gap-4 text-sm">
+                <button
+                  onClick={() => setShowRatingModal(true)}
+                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 min-h-[44px] px-3 active:scale-95 transition-transform"
+                  aria-label="Mark as watched and rate"
+                >
+                  <Star className="h-4 w-4" />
+                  <span className="font-medium">Watched</span>
+                </button>
+                <span className="text-muted-foreground">•</span>
+                <button
+                  onClick={() => setShowNotInterestedModal(true)}
+                  className="flex items-center gap-1 text-muted-foreground hover:text-foreground min-h-[44px] px-3 active:scale-95 transition-transform"
+                  aria-label="Mark as not interested"
+                >
+                  <XCircle className="h-4 w-4" />
+                  <span className="font-medium">Pass</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

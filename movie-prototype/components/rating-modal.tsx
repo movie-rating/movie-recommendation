@@ -53,7 +53,7 @@ export function RatingModal({
       onClick={onClose}
     >
       <div 
-        className="bg-background rounded-lg max-w-md w-full p-6"
+        className="bg-background rounded-lg w-full max-w-md mx-4 p-4 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold mb-4">Rate: {movieTitle}</h2>
@@ -66,7 +66,7 @@ export function RatingModal({
                 <button
                   key={r.value}
                   onClick={() => setRating(r.value)}
-                  className={`p-3 rounded-lg border-2 text-left transition ${
+                  className={`p-3 min-h-[44px] rounded-lg border-2 text-left transition ${
                     rating === r.value 
                       ? 'border-primary bg-primary/10' 
                       : 'border-border hover:border-primary/50'

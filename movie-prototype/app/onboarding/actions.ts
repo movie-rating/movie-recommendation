@@ -3,9 +3,74 @@ import { getOrCreateSession } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { generateRecommendationsFromMovies } from '@/lib/gemini'
 import { enrichWithTMDB, filterDuplicateTitles } from '@/lib/utils'
+import { getPosterUrl } from '@/lib/tmdb'
+
+export interface SearchResult {
+  id: number
+  title: string
+  year: string
+  mediaType: 'movie' | 'tv'
+  posterUrl: string
+}
+
+export async function searchMediaAction(query: string): Promise<SearchResult[]> {
+  if (!query || query.length < 2) {
+    return []
+  }
+
+  const TMDB_KEY = process.env.TMDB_API_KEY
+  if (!TMDB_KEY) {
+    console.error('TMDB_API_KEY is not set in environment variables')
+    return []
+  }
+
+  try {
+    const params = new URLSearchParams({ query })
+    const res = await fetch(`https://api.themoviedb.org/3/search/multi?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${TMDB_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      next: { revalidate: 3600 } // Cache for 1 hour
+    })
+
+    if (!res.ok) {
+      console.error(`TMDB API error for "${query}":`, res.status)
+      return []
+    }
+
+    const data = await res.json()
+    
+    // Filter to only movies and TV shows, take top 10
+    const results = (data.results || [])
+      .filter((r: any) => r.media_type === 'movie' || r.media_type === 'tv')
+      .slice(0, 10)
+      .map((r: any) => ({
+        id: r.id,
+        title: r.media_type === 'movie' ? r.title : r.name,
+        year: r.media_type === 'movie' 
+          ? r.release_date?.split('-')[0] || 'Unknown'
+          : r.first_air_date?.split('-')[0] || 'Unknown',
+        mediaType: r.media_type as 'movie' | 'tv',
+        posterUrl: getPosterUrl(r.poster_path)
+      }))
+
+    return results
+  } catch (error) {
+    console.error('Error searching media:', error)
+    return []
+  }
+}
 
 export async function submitMoviesAction(
-  movies: Array<{ title: string; sentiment: string; reason: string }>
+  movies: Array<{ 
+    title: string
+    sentiment: string
+    reason: string
+    tmdbMovieId?: number
+    tmdbTvId?: number
+    mediaType?: 'movie' | 'tv'
+  }>
 ) {
   try {
     const sessionId = await getOrCreateSession()
@@ -22,7 +87,10 @@ export async function submitMoviesAction(
           session_id: sessionId,
           movie_title: m.title,
           sentiment: m.sentiment,
-          reason: m.reason
+          reason: m.reason,
+          tmdb_movie_id: m.tmdbMovieId || null,
+          tmdb_tv_id: m.tmdbTvId || null,
+          media_type: m.mediaType || null
         }))
       )
 
@@ -41,7 +109,11 @@ export async function submitMoviesAction(
 
     // 3. Generate recommendations directly from movies
     const { safe, experimental } = await generateRecommendationsFromMovies(
-      movies,
+      movies.map(m => ({
+        movie_title: m.title,
+        sentiment: m.sentiment,
+        reason: m.reason
+      })),
       existingTitles
     )
 

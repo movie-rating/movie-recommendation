@@ -105,7 +105,23 @@ export async function generateNewRecommendations(
     // #region agent log
     fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations-service.ts:83-post',message:'After duplicate filtering',data:{beforeFilter:enrichedAll.length,afterFilter:enriched.length,filtered:enrichedAll.length-enriched.length,enrichedSample:enriched.slice(0,3).map(e=>e.movie_title)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
     // #endregion
-    const toInsert = enriched.map(({ title_lower, ...rest }) => rest)
+    
+    // Get the current max batch_id for this session to generate the next batch
+    const { data: maxBatch } = await supabase
+      .from('recommendations')
+      .select('batch_id')
+      .eq('session_id', sessionId)
+      .order('batch_id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const nextBatchId = (maxBatch?.batch_id || 0) + 1
+
+    // Assign batch_id to all new recommendations
+    const toInsert = enriched.map(({ title_lower, ...rest }) => ({
+      ...rest,
+      batch_id: nextBatchId
+    }))
 
     if (toInsert.length === 0) {
       return { 

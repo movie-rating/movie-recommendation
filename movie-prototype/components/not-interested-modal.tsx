@@ -48,7 +48,7 @@ export function NotInterestedModal({
       onClick={onClose}
     >
       <div 
-        className="bg-background rounded-lg max-w-md w-full p-6"
+        className="bg-background rounded-lg w-full max-w-md mx-4 p-4 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold mb-4">Not Interested: {movieTitle}</h2>

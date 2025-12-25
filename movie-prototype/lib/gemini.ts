@@ -119,6 +119,67 @@ Respond with ONLY valid JSON:
   }
 }
 
+export async function rescoreRecommendations(
+  recommendations: Array<{ 
+    id: string
+    movie_title: string
+    reasoning: string
+    match_explanation?: string
+  }>,
+  userMovies: Array<{ movie_title: string; sentiment: string; reason: string }>
+): Promise<Map<string, number>> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
+  
+  // Separate loved/liked from hated/meh
+  const lovedMovies = userMovies.filter(m => 
+    m.sentiment === 'loved' || m.sentiment === 'liked'
+  )
+  const dislikedMovies = userMovies.filter(m => 
+    m.sentiment === 'hated' || m.sentiment === 'meh'
+  )
+  
+  const prompt = `You are an entertainment expert. Score these existing recommendations based on how well they match the user's CURRENT taste profile.
+
+USER'S LOVED MOVIES:
+${lovedMovies.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n')}
+
+${dislikedMovies.length > 0 ? `USER'S DISLIKED MOVIES:\n${dislikedMovies.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n')}` : ''}
+
+RECOMMENDATIONS TO SCORE:
+${recommendations.map((r, idx) => `${idx + 1}. "${r.movie_title}" - ${r.reasoning}${r.match_explanation ? ` (${r.match_explanation})` : ''}`).join('\n')}
+
+For each recommendation, calculate a match confidence score (0-100) based on:
+- Alignment with their loved movies (themes, styles, genres)
+- Avoiding patterns from disliked movies
+- Overall fit with their current taste profile
+
+Use these guidelines:
+- 85-95: Strong alignment with loved movies
+- 70-84: Good match with some aspects of their taste
+- 60-69: Moderate match or experimental pick
+- Below 60: Weak alignment
+
+Respond with ONLY valid JSON - an array of scores in the same order:
+[85, 72, 90, 65, ...]`
+
+  const result = await model.generateContent(prompt)
+  const text = result.response.text()
+  const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
+  const scores = JSON.parse(cleaned) as number[]
+  
+  // Build map of recommendation ID to score
+  const scoreMap = new Map<string, number>()
+  recommendations.forEach((rec, idx) => {
+    if (idx < scores.length) {
+      // Ensure score is within valid range
+      const score = Math.max(0, Math.min(100, scores[idx]))
+      scoreMap.set(rec.id, score)
+    }
+  })
+  
+  return scoreMap
+}
+
 type AIRecommendation = {
   title: string
   year?: number

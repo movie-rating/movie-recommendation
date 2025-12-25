@@ -1,26 +1,21 @@
 'use client'
 import { useState } from 'react'
 import { MovieCardExpandable } from './movie-card-expandable'
-import { GeneManager } from './gene-manager'
 import { Button } from './ui/button'
 import { generateMoreRecommendationsAction } from '@/app/recommendations/actions'
 import { useRouter } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
-import type { RecommendationWithFeedback, TasteProfile, TasteGene } from '@/lib/types'
+import type { RecommendationWithFeedback } from '@/lib/types'
 import { RegenerateModal } from './regenerate-modal'
 
 type TabId = 'to_watch' | 'watchlist' | 'watched' | 'not_interested'
 
 export function RecommendationsTabs({ 
   recommendations,
-  ratedCount,
-  tasteProfile,
-  topGenes
+  ratedCount
 }: {
   recommendations: RecommendationWithFeedback[]
   ratedCount: number
-  tasteProfile?: TasteProfile | null
-  topGenes: TasteGene[]
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('to_watch')
   const [loading, setLoading] = useState(false)
@@ -28,18 +23,12 @@ export function RecommendationsTabs({
   const [showLoadMoreModal, setShowLoadMoreModal] = useState(false)
   const router = useRouter()
 
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations-tabs.tsx:29',message:'Filtering recommendations',data:{totalRecs:recommendations.length,withFeedback:recommendations.filter(r=>r.feedback).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3,H4'})}).catch(()=>{});
-  // #endregion
   const toWatch = recommendations
     .filter(r => !r.feedback)
     .sort((a, b) => (b.match_confidence || 0) - (a.match_confidence || 0))
   const watchlist = recommendations.filter(r => r.feedback?.status === 'watchlist')
   const watched = recommendations.filter(r => r.feedback?.status === 'watched')
   const notInterested = recommendations.filter(r => r.feedback?.status === 'not_interested')
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations-tabs.tsx:37',message:'Filtered counts',data:{toWatch:toWatch.length,watchlist:watchlist.length,watched:watched.length,notInterested:notInterested.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-  // #endregion
   
   const experimental = toWatch.filter(r => r.is_experimental)
   const regular = toWatch.filter(r => !r.is_experimental)
@@ -74,8 +63,6 @@ export function RecommendationsTabs({
 
   return (
     <div>
-      <GeneManager genes={topGenes || []} sessionHasFeedback={hasAnyFeedback} />
-      
       <div className="flex gap-2 border-b mb-8 overflow-x-auto">
         {tabs.map(tab => (
           <button

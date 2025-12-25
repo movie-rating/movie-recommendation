@@ -8,7 +8,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
-import { getGeneSources } from '@/lib/db-helpers'
 
 export const metadata: Metadata = {
   title: 'Your Watch List | AI-Powered Recommendations',
@@ -83,49 +82,6 @@ export default async function RecommendationsPage() {
     r => r.feedback?.status === 'watched' && r.feedback?.rating
   ).length
 
-  // Fetch taste profile
-  const { data: profile } = await supabase
-    .from('taste_profiles')
-    .select('*')
-    .eq('session_id', sessionId)
-    .single()
-
-  const { data: tasteGenes, error: genesError } = await supabase
-    .from('taste_genes')
-    .select('*')
-    .eq('session_id', sessionId)
-    .order('strength', { ascending: false })
-  
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/page.tsx:91',message:'Fetched taste genes',data:{sessionId,geneCount:tasteGenes?.length || 0,hasError:!!genesError,error:genesError?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
-
-  // Fetch sources for genes with multiple sources (optimized single query)
-  const geneIds = (tasteGenes || [])
-    .filter(g => g.source_count && g.source_count > 1)
-    .map(g => g.id)
-  
-  let sourcesByGeneId: Record<string, any[]> = {}
-  if (geneIds.length > 0) {
-    const { data: allSources } = await supabase
-      .from('gene_sources')
-      .select('*')
-      .in('gene_id', geneIds)
-      .order('contributed_at', { ascending: false })
-    
-    // Group sources by gene_id
-    sourcesByGeneId = (allSources || []).reduce((acc, source) => {
-      if (!acc[source.gene_id]) acc[source.gene_id] = []
-      acc[source.gene_id].push(source)
-      return acc
-    }, {} as Record<string, any[]>)
-  }
-
-  const genesWithSources = (tasteGenes || []).map(gene => ({
-    ...gene,
-    sources: sourcesByGeneId[gene.id] || undefined
-  }))
-
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -154,8 +110,6 @@ export default async function RecommendationsPage() {
         <RecommendationsTabs 
           recommendations={recsWithFeedback}
           ratedCount={ratedCount}
-          tasteProfile={profile}
-          topGenes={genesWithSources}
         />
 
         <div className="mt-12 text-center space-x-4">

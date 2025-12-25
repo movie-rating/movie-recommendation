@@ -6,3 +6,4 @@ ADD COLUMN IF NOT EXISTS match_explanation TEXT;
 
 COMMENT ON COLUMN recommendations.match_explanation IS 'AI-generated conversational explanation of why this recommendation matches user taste genes and preferences';
 
+

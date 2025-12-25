@@ -23,3 +23,4 @@ supabase db execute --file supabase/migrations/20241222_add_match_confidence.sql
 
 - `20241222_add_match_confidence.sql` - Adds match_confidence column to recommendations table for AI confidence scores
 
+

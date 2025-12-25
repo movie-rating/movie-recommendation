@@ -11,3 +11,4 @@ ADD CONSTRAINT movie_feedback_status_check
 CHECK (status IN ('to_watch', 'watched', 'not_interested', 'watchlist'));
 
 COMMENT ON CONSTRAINT movie_feedback_status_check ON movie_feedback IS 'Ensures status is one of: to_watch, watched, not_interested, watchlist';
+

@@ -61,3 +61,4 @@ export function getSeasonInfo(movieDetails: TMDBMovieDetails | TMDBTVDetails | n
   
   return `${tvDetails.number_of_seasons} season${tvDetails.number_of_seasons > 1 ? 's' : ''}`
 }
+

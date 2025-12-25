@@ -28,3 +28,4 @@ COMMENT ON COLUMN gene_sources.source_movie_title IS 'Title of the movie that co
 COMMENT ON COLUMN gene_sources.source_rating IS 'User rating for the source movie (loved/liked/meh/hated)';
 COMMENT ON COLUMN taste_genes.source_count IS 'Number of distinct movies that contributed to this gene';
 COMMENT ON COLUMN taste_genes.source_multiplier IS 'Multiplier for gene weight based on source count (1.0 to 2.0)';
+

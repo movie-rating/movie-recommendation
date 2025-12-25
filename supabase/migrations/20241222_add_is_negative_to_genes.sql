@@ -21,3 +21,4 @@ ON taste_genes(is_negative);
 COMMENT ON COLUMN taste_genes.is_negative IS 'True if gene represents what user wants to AVOID, false for what they ENJOY';
 COMMENT ON COLUMN taste_genes.is_dealbreaker IS 'True if this is an absolute requirement or hard rejection';
 COMMENT ON COLUMN taste_genes.updated_at IS 'Timestamp of last modification to this gene';
+

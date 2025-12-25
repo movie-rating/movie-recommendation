@@ -9,3 +9,4 @@ CREATE INDEX IF NOT EXISTS idx_movie_feedback_genes_extracted
 ON movie_feedback(genes_extracted, session_id);
 
 COMMENT ON COLUMN movie_feedback.genes_extracted IS 'True if taste genes have been extracted from this feedback';
+

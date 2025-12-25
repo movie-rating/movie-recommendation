@@ -26,7 +26,7 @@ export function AddWatchedMovieForm({ onSuccess }: { onSuccess?: () => void }) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   
   const router = useRouter()

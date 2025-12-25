@@ -12,19 +12,49 @@ export function filterDuplicateTitles<T extends { title?: string; movie_title?: 
 ): T[] {
   const existingLower = existingTitles.map(t => t.toLowerCase())
   const seen = new Set<string>()
+  const filtered: string[] = []
+  const passed: string[] = []
   
-  return items.filter(item => {
+  // #region agent log
+  const firstThreeItemTitles = items.slice(0,3).map(i=>i.title||i.movie_title||'');
+  const checkForDupes = firstThreeItemTitles.map(title => ({
+    original: title,
+    lower: title.toLowerCase(),
+    inExisting: existingTitles.includes(title),
+    inExistingLower: existingLower.includes(title.toLowerCase())
+  }));
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'utils.ts:filter-input',message:'Filter input',data:{itemsCount:items.length,itemTitles:items.map(i=>i.title||i.movie_title),existingCount:existingTitles.length,checkForDupes:checkForDupes,existingAllTitles:existingTitles},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H8'})}).catch(()=>{});
+  // #endregion
+  
+  const result = items.filter(item => {
     const title = (item.title || item.movie_title || '').toLowerCase()
     
     // Check against existing titles
-    if (existingLower.includes(title)) return false
+    if (existingLower.includes(title)) {
+      // #region agent log
+      filtered.push(title)
+      // #endregion
+      return false
+    }
     
     // Check against items we've already seen in this batch
-    if (seen.has(title)) return false
+    if (seen.has(title)) {
+      // #region agent log
+      filtered.push(title)
+      // #endregion
+      return false
+    }
     
     seen.add(title)
+    passed.push(title)
     return true
   })
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'utils.ts:filter-output',message:'Filter output',data:{filteredCount:filtered.length,filteredTitles:filtered,passedCount:passed.length,passedTitles:passed},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H8'})}).catch(()=>{});
+  // #endregion
+  
+  return result
 }
 
 // TMDB enrichment helper

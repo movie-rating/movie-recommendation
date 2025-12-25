@@ -9,6 +9,9 @@ export async function submitMoviesAction(
 ) {
   try {
     const sessionId = await getOrCreateSession()
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/actions.ts:11',message:'submitMoviesAction START',data:{sessionId,movieCount:movies.length,moviesSample:movies.slice(0,2)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     const supabase = await createClient()
 
     // 1. Store user movies
@@ -56,6 +59,9 @@ export async function submitMoviesAction(
 
     // 6. Store recommendations
     if (toInsert.length > 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/actions.ts:58',message:'Onboarding recommendations stored',data:{count:toInsert.length,titlesSample:toInsert.slice(0,3).map(t=>t.movie_title)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       await supabase.from('recommendations').insert(toInsert)
     }
 

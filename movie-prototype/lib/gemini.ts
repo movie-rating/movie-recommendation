@@ -48,8 +48,7 @@ export async function generateRecommendationsFromMovies(
   // Build exclusion list section
   const exclusionSection = existingMovieTitles.length > 0 
     ? `\n\nDO NOT RECOMMEND - Already seen (${existingMovieTitles.length} titles):
-${existingMovieTitles.slice(0, 50).map(t => `- ${t}`).join('\n')}
-${existingMovieTitles.length > 50 ? `... and ${existingMovieTitles.length - 50} more` : ''}`
+${existingMovieTitles.map(t => `- ${t}`).join('\n')}`
     : ''
   
   // Build user guidance section

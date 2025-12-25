@@ -11,6 +11,9 @@ export async function saveFeedbackAction(
   rating?: string,
   reason?: string
 ) {
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:14',message:'saveFeedbackAction START',data:{recommendationId,status,rating,reason},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
   const sessionId = await getSessionId()
   if (!sessionId) return { success: false, error: 'No session' }
 
@@ -50,6 +53,9 @@ export async function saveFeedbackAction(
   if (rec) {
     // WATCHED with rating → Add to user_movies with that rating
     if (status === 'watched' && rating) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:52',message:'Adding WATCHED to user_movies',data:{movieTitle:rec.movie_title,sentiment:rating,reason:reason||''},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
@@ -60,6 +66,9 @@ export async function saveFeedbackAction(
     
     // WATCHLIST → Add to user_movies with 'watchlist' sentiment
     if (status === 'watchlist') {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:62',message:'Adding WATCHLIST to user_movies',data:{movieTitle:rec.movie_title,sentiment:'watchlist'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
@@ -70,6 +79,9 @@ export async function saveFeedbackAction(
     
     // NOT INTERESTED → Add to user_movies with 'hated' to avoid similar
     if (status === 'not_interested') {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:72',message:'Adding NOT_INTERESTED to user_movies',data:{movieTitle:rec.movie_title,sentiment:'hated',reason:reason||'Not interested'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
@@ -144,11 +156,8 @@ export async function clearUnwatchedRecommendationsAction() {
 }
 
 export async function generateMoreRecommendationsAction(userGuidance?: string) {
-  // Step 1: Clear unwatched recommendations
-  const clearResult = await clearUnwatchedRecommendationsAction()
-  if (!clearResult.success) return clearResult
-  
-  // Step 2: Generate new recommendations (no gene update needed)
+  // Don't clear old recommendations - keep them for duplicate prevention
+  // The exclusion list in generateNewRecommendations will prevent re-recommendations
   return generateNewRecommendations({
     minRatingsRequired: THRESHOLDS.MIN_RATINGS_FOR_MORE,
     userGuidance

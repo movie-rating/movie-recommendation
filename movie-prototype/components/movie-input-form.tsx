@@ -21,41 +21,7 @@ type Movie = {
 
 export function MovieInputForm() {
   const [movies, setMovies] = useState<Movie[]>([
-    { 
-      title: 'Game of Thrones', 
-      sentiment: 'loved', 
-      reason: 'Love the historical setting, the light fantasy, and especially the super entertaining plot' 
-    },
-    { 
-      title: 'Ford v Ferrari', 
-      sentiment: 'loved', 
-      reason: 'Love how it makes a super interesting plot and keeps you on your toes despite a race not being super interesting in general, absolutely amazing movie' 
-    },
-    { 
-      title: 'Peaky Blinders', 
-      sentiment: 'loved', 
-      reason: 'Love historical setting, interesting plot' 
-    },
-    { 
-      title: 'Downton Abbey', 
-      sentiment: 'loved', 
-      reason: 'Love historical British setting, just cool drama' 
-    },
-    { 
-      title: 'Inception', 
-      sentiment: 'loved', 
-      reason: 'Loved the mindbend part of it' 
-    },
-    { 
-      title: 'The Brutalist', 
-      sentiment: 'meh', 
-      reason: 'Too slow, don\'t care about jews in America type of settings' 
-    },
-    { 
-      title: 'Get Out', 
-      sentiment: 'meh', 
-      reason: 'Interesting idea just don\'t care about the racial aspect of it' 
-    }
+    { title: '', sentiment: 'loved', reason: '' }
   ])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

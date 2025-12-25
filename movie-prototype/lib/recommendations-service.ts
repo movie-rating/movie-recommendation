@@ -16,8 +16,8 @@ type GenerateRecommendationsOptions = {
 }
 
 /**
- * Shared logic for generating new recommendations based on user's taste profile
- * Used by both "Load More" and "Regenerate with Genes" features
+ * Shared logic for generating new recommendations based on user's movie ratings
+ * Used by both "Load More" and "Regenerate" features
  */
 export async function generateNewRecommendations(
   options: GenerateRecommendationsOptions = {}

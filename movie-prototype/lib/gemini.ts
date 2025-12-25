@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { RATING_MAP_UPPER, THRESHOLDS, RECOMMENDATION_GENERATION } from './constants'
+import './env'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 

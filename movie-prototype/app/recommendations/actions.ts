@@ -11,9 +11,6 @@ export async function saveFeedbackAction(
   rating?: string,
   reason?: string
 ) {
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:14',message:'saveFeedbackAction START',data:{recommendationId,status,rating,reason},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   const sessionId = await getSessionId()
   if (!sessionId) return { success: false, error: 'No session' }
 
@@ -53,25 +50,16 @@ export async function saveFeedbackAction(
   if (rec) {
     // WATCHED with rating → Add to user_movies with that rating
     if (status === 'watched' && rating) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:saveFeedback_beforeInsert',message:'About to insert WATCHED to user_movies',data:{movieTitle:rec.movie_title,sentiment:rating,reason:reason||''},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      const { error: insertError } = await supabase.from('user_movies').insert({
+      await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
         sentiment: rating, // 'loved', 'liked', 'meh', or 'hated'
         reason: reason || ''
       })
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:saveFeedback_afterInsert',message:'Insert result for WATCHED',data:{movieTitle:rec.movie_title,error:insertError?.message||null,success:!insertError},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
     }
     
     // WATCHLIST → Add to user_movies with 'watchlist' sentiment
     if (status === 'watchlist') {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:62',message:'Adding WATCHLIST to user_movies',data:{movieTitle:rec.movie_title,sentiment:'watchlist'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
@@ -82,9 +70,6 @@ export async function saveFeedbackAction(
     
     // NOT INTERESTED → Add to user_movies with 'hated' to avoid similar
     if (status === 'not_interested') {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:72',message:'Adding NOT_INTERESTED to user_movies',data:{movieTitle:rec.movie_title,sentiment:'hated',reason:reason||'Not interested'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       await supabase.from('user_movies').insert({
         session_id: sessionId,
         movie_title: rec.movie_title,
@@ -175,14 +160,21 @@ export async function addWatchedMovieAction(
   tmdbTvId?: number,
   mediaType?: 'movie' | 'tv'
 ) {
+  // Basic validation
+  if (!title || title.length > 200) {
+    return { success: false, error: 'Invalid movie title' };
+  }
+  if (!['loved', 'liked', 'meh', 'hated'].includes(sentiment)) {
+    return { success: false, error: 'Invalid rating' };
+  }
+  if (reason && reason.length > 500) {
+    return { success: false, error: 'Reason too long (max 500 characters)' };
+  }
+
   const sessionId = await getSessionId()
   if (!sessionId) return { success: false, error: 'No session' }
 
   const supabase = await createClient()
-  
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:addWatchedMovie_beforeInsert',message:'About to add watched movie',data:{title,sentiment,tmdbMovieId,tmdbTvId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
   
   // Insert into user_movies table
   const { error } = await supabase
@@ -196,10 +188,6 @@ export async function addWatchedMovieAction(
       tmdb_tv_id: tmdbTvId || null,
       media_type: mediaType || null
     })
-
-  // #region agent log
-  fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'recommendations/actions.ts:addWatchedMovie_afterInsert',message:'Insert result',data:{title,error:error?.message||null,success:!error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
 
   if (error) {
     console.error('Error adding watched movie:', error)

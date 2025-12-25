@@ -1,3 +1,5 @@
+import './env'
+
 const TMDB_KEY = process.env.TMDB_API_KEY
 const BASE = 'https://api.themoviedb.org/3'
 

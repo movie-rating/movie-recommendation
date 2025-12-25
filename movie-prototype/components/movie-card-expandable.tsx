@@ -54,17 +54,8 @@ export function MovieCardExpandable({
   const router = useRouter()
 
   const handleAddToWatchlist = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:48',message:'Watchlist clicked',data:{movieId:id,title:title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
-    // #endregion
     const result = await saveFeedbackAction(id, 'watchlist')
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:51',message:'Watchlist action result',data:{success:result.success,error:result.error},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     if (result.success) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-expandable.tsx:54',message:'Calling router.refresh',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
       setSuccessMessage('Added to watchlist')
       setShowSuccessToast(true)
       router.refresh()

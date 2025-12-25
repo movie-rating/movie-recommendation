@@ -12,8 +12,6 @@ import {
 
 type GenerateRecommendationsOptions = {
   minRatingsRequired?: number
-  minGenesRequired?: number
-  requireTasteGenes?: boolean
   userGuidance?: string
 }
 

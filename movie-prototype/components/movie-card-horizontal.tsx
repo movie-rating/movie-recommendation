@@ -158,20 +158,20 @@ export function MovieCardHorizontal({
                     size="sm"
                     variant="outline"
                     onClick={() => setShowRatingModal(true)}
-                    className="h-10 border-blue-600/40 text-blue-600 hover:bg-blue-600/10 dark:text-blue-400 dark:border-blue-500/40"
+                    className="h-11 border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-600 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900 dark:hover:border-blue-500 font-semibold shadow-sm active:scale-[0.98] transition-all"
                   >
-                    <Star className="h-4 w-4 mr-1" />
-                    <span className="font-medium">Watched</span>
+                    <Star className="h-4 w-4 mr-1.5" />
+                    <span className="font-semibold">Watched</span>
                   </Button>
                   
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setShowNotInterestedModal(true)}
-                    className="h-10 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    className="h-11 border-2 border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-400 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:border-slate-500 font-semibold shadow-sm active:scale-[0.98] transition-all"
                   >
-                    <XCircle className="h-4 w-4 mr-1" />
-                    <span className="font-medium">Pass</span>
+                    <XCircle className="h-4 w-4 mr-1.5" />
+                    <span className="font-semibold">Pass</span>
                   </Button>
                 </div>
               </div>

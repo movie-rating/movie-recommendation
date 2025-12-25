@@ -95,8 +95,17 @@ Respond with ONLY valid JSON:
   ]
 }`
 
+  // Log prompt metadata before API call
+  console.log(`[Gemini] Prompt: ${prompt.length} chars, Exclusions: ${existingMovieTitles.length} titles, Loved: ${lovedMovies.length}, Disliked: ${dislikedMovies.length}`)
+
+  // Time the actual API call
+  const apiStartTime = Date.now()
   const result = await model.generateContent(prompt)
+  const apiDuration = Date.now() - apiStartTime
+  
   const text = result.response.text()
+  console.log(`[Gemini] API call: ${apiDuration}ms, Response: ${text.length} chars`)
+  
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
   const parsed = JSON.parse(cleaned)
   
@@ -113,9 +122,14 @@ Respond with ONLY valid JSON:
     })
   }
   
+  const safeFiltered = filterDupes(parsed.safe || [])
+  const experimentalFiltered = filterDupes(parsed.experimental || [])
+  
+  console.log(`[Gemini] Results: ${safeFiltered.length} safe, ${experimentalFiltered.length} experimental (${(parsed.safe?.length || 0) - safeFiltered.length} safe dupes, ${(parsed.experimental?.length || 0) - experimentalFiltered.length} exp dupes)`)
+  
   return {
-    safe: filterDupes(parsed.safe || []),
-    experimental: filterDupes(parsed.experimental || [])
+    safe: safeFiltered,
+    experimental: experimentalFiltered
   }
 }
 

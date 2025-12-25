@@ -256,25 +256,29 @@ export function MovieCardExpandable({
                 <span className="font-semibold">Add to Watchlist</span>
               </Button>
               
-              {/* Secondary actions as text links */}
-              <div className="flex items-center justify-center gap-4 text-sm">
-                <button
+              {/* Secondary actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => setShowRatingModal(true)}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 min-h-[44px] px-3 active:scale-95 transition-transform"
+                  className="h-11 border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-600 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-600 dark:hover:bg-blue-900 dark:hover:border-blue-500 font-semibold shadow-sm active:scale-[0.98] transition-all"
                   aria-label="Mark as watched and rate"
                 >
-                  <Star className="h-4 w-4" />
-                  <span className="font-medium">Watched</span>
-                </button>
-                <span className="text-muted-foreground">•</span>
-                <button
+                  <Star className="h-4 w-4 mr-1.5" />
+                  <span className="font-semibold">Watched</span>
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => setShowNotInterestedModal(true)}
-                  className="flex items-center gap-1 text-muted-foreground hover:text-foreground min-h-[44px] px-3 active:scale-95 transition-transform"
+                  className="h-11 border-2 border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-400 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:border-slate-500 font-semibold shadow-sm active:scale-[0.98] transition-all"
                   aria-label="Mark as not interested"
                 >
-                  <XCircle className="h-4 w-4" />
-                  <span className="font-medium">Pass</span>
-                </button>
+                  <XCircle className="h-4 w-4 mr-1.5" />
+                  <span className="font-semibold">Pass</span>
+                </Button>
               </div>
             </div>
           )}

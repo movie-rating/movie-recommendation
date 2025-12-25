@@ -38,30 +38,18 @@ export async function enrichWithTMDB(
     ai_confidence?: number 
   }>,
   sessionId: string,
-  tasteGenes: Array<{ 
-    gene_name: string; 
-    strength: number; 
-    is_negative: boolean; 
-    is_dealbreaker: boolean; 
-    description: string 
-  }> = [],
+  _tasteGenes: any[] = [], // Kept for backwards compatibility, not used
   isExperimental: boolean = false
 ) {
   const { searchMedia } = await import('./tmdb')
-  const { calculateFinalMatchScore } = await import('./confidence-calculator')
   
   const enriched = await Promise.all(
     recommendations.map(async (rec) => {
       const tmdb = await searchMedia(rec.title, rec.year)
       const mediaType = tmdb?.media_type || 'movie'
       
-      // Calculate final match confidence
-      const matchConfidence = calculateFinalMatchScore(
-        rec.ai_confidence || 75,
-        rec.reasoning || '',
-        tasteGenes,
-        isExperimental || rec.confidence === 'experimental'
-      )
+      // Use AI confidence directly (no gene matching needed)
+      const matchConfidence = rec.ai_confidence || 75
       
       return {
         session_id: sessionId,

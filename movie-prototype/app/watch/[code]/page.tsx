@@ -38,35 +38,21 @@ export default async function WatchSessionPage({ params }: Props) {
   // Check if current user is host or guest
   const isHost = userSessionId === watchSession.host_session_id
   const isGuest = userSessionId === watchSession.guest_session_id
+  const isParticipant = isHost || isGuest
 
-  // Session completed - show the match (only for participants)
-  if (watchSession.status === 'completed' && (isHost || isGuest)) {
-    return (
-      <ActiveSessionView
-        session={watchSession}
-        isHost={isHost}
-      />
-    )
+  // Active or completed session - show voting/match view (participants only)
+  if ((watchSession.status === 'active' || watchSession.status === 'completed') && isParticipant) {
+    return <ActiveSessionView session={watchSession} isHost={isHost} />
   }
 
-  // Session is active - show voting view
-  if (watchSession.status === 'active' && (isHost || isGuest)) {
-    return (
-      <ActiveSessionView
-        session={watchSession}
-        isHost={isHost}
-      />
-    )
+  // Active session but not a participant - deny access
+  if (watchSession.status === 'active' || watchSession.status === 'completed') {
+    return <SessionNotFound />
   }
 
   // Host viewing their waiting session
   if (watchSession.status === 'waiting' && isHost) {
     return <HostWaitingView session={watchSession} />
-  }
-
-  // Someone else trying to view an active session they're not part of
-  if (watchSession.status === 'active' && !isHost && !isGuest) {
-    return <SessionNotFound />
   }
 
   // Check if user has rated movies (has preferences)

@@ -4,10 +4,9 @@ import { useRouter } from 'next/navigation'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
-import { Badge } from './ui/badge'
 import { Check } from 'lucide-react'
 import { submitMoviesAction, searchMediaAction, type SearchResult } from '@/app/onboarding/actions'
-import { THRESHOLDS, RATING_MAP } from '@/lib/constants'
+import { THRESHOLDS } from '@/lib/constants'
 import type { Rating } from '@/lib/types'
 import { StreamingPlatformSelector } from './streaming-platform-selector'
 
@@ -28,7 +27,6 @@ export function MovieInputForm() {
   const [loading, setLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState<'analyzing' | 'generating' | 'enriching' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [warning, setWarning] = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [currentStep, setCurrentStep] = useState<'movies' | 'platforms'>('movies')
   const router = useRouter()
@@ -173,7 +171,6 @@ export function MovieInputForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setWarning(null)
     setLoadingStep('analyzing')
 
     // Simulate progress steps while the API call runs
@@ -196,7 +193,7 @@ export function MovieInputForm() {
         setError(result.error || 'Something went wrong')
         setLoadingStep(null)
       }
-    } catch (err) {
+    } catch {
       stepTimers.forEach(clearTimeout)
       setError('Failed to generate recommendations')
       setLoadingStep(null)
@@ -205,10 +202,8 @@ export function MovieInputForm() {
     }
   }
 
-  const canProceedToNext = movies.length >= THRESHOLDS.MIN_MOVIES_ONBOARDING && 
+  const canProceedToNext = movies.length >= THRESHOLDS.MIN_MOVIES_ONBOARDING &&
     movies.every(m => m.title.trim() && m.reason.trim())
-
-  const canSubmit = canProceedToNext && !loading
 
   const completedCount = movies.filter(m => m.title.trim() && m.reason.trim()).length
   const hasMinimum = completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING
@@ -216,16 +211,6 @@ export function MovieInputForm() {
   const progressPercent = hasMinimum
     ? Math.min(100, (completedCount / THRESHOLDS.MAX_MOVIES_ONBOARDING) * 100)
     : (completedCount / THRESHOLDS.MIN_MOVIES_ONBOARDING) * 100
-
-  const getRatingColor = (rating: Rating) => {
-    switch (rating) {
-      case 'loved': return 'border-rose-500/50 bg-rose-50/5'
-      case 'liked': return 'border-green-500/50 bg-green-50/5'
-      case 'meh': return 'border-yellow-500/50 bg-yellow-50/5'
-      case 'hated': return 'border-gray-500/50 bg-gray-50/5'
-      default: return ''
-    }
-  }
 
   // Render platform selection step
   if (currentStep === 'platforms') {
@@ -352,54 +337,36 @@ export function MovieInputForm() {
   return (
     <>
       <div className="mb-8 sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-4 -mx-4 px-4 border-b border-border/50">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-muted-foreground">Progress</span>
-          <span className="text-sm font-medium">
-            {completedCount} of {hasMinimum ? THRESHOLDS.MAX_MOVIES_ONBOARDING : THRESHOLDS.MIN_MOVIES_ONBOARDING}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-muted-foreground">
+            {hasMinimum ? 'Ready to continue' : `${THRESHOLDS.MIN_MOVIES_ONBOARDING - completedCount} more needed`}
+          </span>
+          <span className="text-sm font-medium tabular-nums">
+            {completedCount}/{hasMinimum ? THRESHOLDS.MAX_MOVIES_ONBOARDING : THRESHOLDS.MIN_MOVIES_ONBOARDING}
           </span>
         </div>
-        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="h-1 bg-muted rounded-full overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 ease-out rounded-full ${
-              hasMinimum ? 'bg-success' : 'bg-primary'
-            }`}
+            className="h-full bg-primary transition-all duration-300 ease-out rounded-full"
             style={{ width: `${progressPercent}%` }}
           />
-        </div>
-        <div className="mt-3">
-          {hasMinimum ? (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-success font-medium flex items-center gap-1.5">
-                <Check className="h-4 w-4" />
-                Ready to continue
-              </p>
-              {completedCount < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
-                <p className="text-xs text-muted-foreground">
-                  Add more for better results
-                </p>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {THRESHOLDS.MIN_MOVIES_ONBOARDING - completedCount} more needed
-            </p>
-          )}
         </div>
       </div>
 
       <div className="space-y-6">
       {movies.map((movie, idx) => {
         const hasContent = movie.title.trim() && movie.reason.trim()
-        const cardBorderClass = hasContent ? getRatingColor(movie.sentiment) : 'border-dashed border-muted'
-        
+
         return (
-          <div 
-            key={idx} 
-            className={`relative border-2 rounded-2xl overflow-hidden bg-card fade-in transition-all duration-300 ${cardBorderClass}`}
+          <div
+            key={idx}
+            className={`relative border rounded-xl overflow-hidden bg-card fade-in transition-all duration-300 ${
+              hasContent ? 'border-border shadow-sm' : 'border-dashed border-muted'
+            }`}
             style={{ animationDelay: `${idx * 100}ms` }}
           >
             {/* Header Section - Poster + Title */}
-            <div className="relative bg-gradient-to-br from-muted/30 to-muted/10 p-4 sm:p-5">
+            <div className="p-4 sm:p-5">
               <div className="flex gap-4">
                 {/* Poster */}
                 <div className="w-24 sm:w-28 flex-shrink-0">
@@ -508,31 +475,30 @@ export function MovieInputForm() {
             <div className="p-4 sm:p-5 space-y-5">
               {/* Rating Selector */}
               <div>
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-3 block">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground font-medium mb-3 block">
                   Your Rating
                 </Label>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { value: 'loved' as Rating, label: 'Loved', emoji: '❤️', gradient: 'from-rose-500/10 to-rose-600/5', border: 'border-rose-500/30', activeBg: 'bg-rose-500/15', activeBorder: 'border-rose-500', activeRing: 'ring-rose-500/20' },
-                    { value: 'liked' as Rating, label: 'Liked', emoji: '👍', gradient: 'from-green-500/10 to-green-600/5', border: 'border-green-500/30', activeBg: 'bg-green-500/15', activeBorder: 'border-green-500', activeRing: 'ring-green-500/20' },
-                    { value: 'meh' as Rating, label: 'Meh', emoji: '😐', gradient: 'from-yellow-500/10 to-yellow-600/5', border: 'border-yellow-500/30', activeBg: 'bg-yellow-500/15', activeBorder: 'border-yellow-500', activeRing: 'ring-yellow-500/20' },
-                    { value: 'hated' as Rating, label: 'Hated', emoji: '👎', gradient: 'from-gray-500/10 to-gray-600/5', border: 'border-gray-500/30', activeBg: 'bg-gray-500/15', activeBorder: 'border-gray-500', activeRing: 'ring-gray-500/20' }
+                    { value: 'loved' as Rating, label: 'Loved it' },
+                    { value: 'liked' as Rating, label: 'Liked it' },
+                    { value: 'meh' as Rating, label: 'It was okay' },
+                    { value: 'hated' as Rating, label: 'Disliked' }
                   ].map(rating => (
                     <button
                       key={rating.value}
                       type="button"
                       onClick={() => updateMovie(idx, 'sentiment', rating.value)}
                       disabled={loading}
-                      className={`relative flex flex-col items-center justify-center p-3 min-h-[70px] rounded-xl border-2 transition-all duration-200 ${
-                        movie.sentiment === rating.value 
-                          ? `${rating.activeBg} ${rating.activeBorder} ring-2 ${rating.activeRing} scale-105` 
-                          : `bg-gradient-to-br ${rating.gradient} ${rating.border} hover:scale-105`
+                      className={`p-3 min-h-[48px] rounded-lg border text-sm font-medium transition-all duration-150 ${
+                        movie.sentiment === rating.value
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border bg-background hover:border-primary/50 hover:bg-muted/50'
                       }`}
                       aria-label={`Rate as ${rating.label}`}
                       aria-pressed={movie.sentiment === rating.value}
                     >
-                      <span className="text-2xl mb-1.5">{rating.emoji}</span>
-                      <span className="text-xs font-semibold">{rating.label}</span>
+                      {rating.label}
                     </button>
                   ))}
                 </div>
@@ -541,40 +507,22 @@ export function MovieInputForm() {
               {/* Reason Textarea */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor={`reason-${idx}`} className="text-xs uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-2">
-                    Why? Tell us more
-                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0">
-                      Required
-                    </Badge>
+                  <Label htmlFor={`reason-${idx}`} className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
+                    Why did you feel this way?
                   </Label>
                   {movie.reason.trim() && (
-                    <span className="text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Done
-                    </span>
+                    <Check className="w-4 h-4 text-success" />
                   )}
                 </div>
                 <textarea
                   id={`reason-${idx}`}
-                  placeholder="Example: 'The cinematography was stunning, especially the desert scenes. The slow pacing really built tension. Hans Zimmer's score gave me chills...'"
+                  placeholder="What specifically did you like or dislike? The more detail, the better your recommendations."
                   value={movie.reason}
                   onChange={e => updateMovie(idx, 'reason', e.target.value)}
-                  className={`w-full px-4 py-3 rounded-xl bg-background/50 min-h-[120px] focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all resize-none text-sm leading-relaxed ${
-                    movie.reason.trim() 
-                      ? 'border-2 border-green-500/30' 
-                      : 'border-[3px] border-primary/40 shadow-sm shadow-primary/10'
-                  }`}
+                  className="w-full px-4 py-3 rounded-lg border border-input bg-background min-h-[100px] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all resize-none text-sm leading-relaxed placeholder:text-muted-foreground/60"
                   disabled={loading}
                   required
                 />
-                <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
-                  <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                  <span>The more specific you are about what you liked or disliked, the better your recommendations will be!</span>
-                </p>
               </div>
             </div>
           </div>

@@ -2,12 +2,14 @@
 
 import Image from 'next/image'
 import { PlatformBadge } from '@/components/platform-badge'
+import { SwipeableCard } from '@/components/swipeable-card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useMovieCard, type MovieCardData } from '@/lib/hooks/use-movie-card'
 import { ActionButtons } from './action-buttons'
 import { ExpandedDetails } from './expanded-details'
 import { MovieModals } from './movie-modals'
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 
 type MovieCardVariant = 'grid' | 'horizontal'
 
@@ -46,6 +48,12 @@ export function MovieCard(props: MovieCardProps) {
 
   const { isTV, runtime, year, rating } = metadata
 
+  // Image loading state - reset when posterUrl changes
+  const [imageLoaded, setImageLoaded] = useState(false)
+  useEffect(() => {
+    setImageLoaded(false)
+  }, [posterUrl])
+
   // Memoized callbacks for modal operations
   const handleOpenRating = useCallback(() => openModal('rating'), [openModal])
   const handleOpenNotInterested = useCallback(() => openModal('notInterested'), [openModal])
@@ -70,19 +78,22 @@ export function MovieCard(props: MovieCardProps) {
             className="relative aspect-[2/3] rounded-xl overflow-hidden bg-muted mb-3 cursor-pointer transition-transform duration-200 hover:scale-[1.02]"
             onClick={toggleExpanded}
           >
+            {/* Skeleton loader */}
+            {!imageLoaded && (
+              <Skeleton className="absolute inset-0 rounded-xl" />
+            )}
             <Image
               src={posterUrl}
               alt={title}
               fill
-              className="object-cover"
+              className={`object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
               sizes="(max-width: 768px) 50vw, 20vw"
+              onLoad={() => setImageLoaded(true)}
             />
-            {/* Subtle gradient overlay for text legibility */}
-            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent" />
             {/* Match badge on poster */}
             {matchConfidence && (
               <div className="absolute top-2 left-2">
-                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/90 text-foreground backdrop-blur-sm">
+                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/90 text-gray-900 backdrop-blur-sm">
                   {matchConfidence}%
                 </span>
               </div>
@@ -130,7 +141,6 @@ export function MovieCard(props: MovieCardProps) {
               feedback={feedback}
               isUserMovie={isUserMovie}
               isLoading={isLoading}
-              variant={variant}
               onAddToWatchlist={handleAddToWatchlist}
               onRemoveFromWatchlist={handleRemoveFromWatchlist}
               onOpenRatingModal={handleOpenRating}
@@ -160,109 +170,141 @@ export function MovieCard(props: MovieCardProps) {
   }
 
   // ========== HORIZONTAL LAYOUT ==========
-  return (
-    <>
-      <div className="group fade-in bg-card border border-border rounded-xl overflow-hidden">
-        {experimental && (
-          <div className="px-4 pt-3">
-            <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
-              Something Different
-            </span>
-          </div>
-        )}
+  // Determine if swipe should be enabled (only when no feedback and not user movie)
+  const swipeEnabled = !feedback && !isUserMovie
 
-        <div className="flex gap-4 p-4">
-          {/* Poster */}
-          <div className="flex-shrink-0 w-[100px]">
-            <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted">
-              <Image
-                src={posterUrl}
-                alt={title}
-                fill
-                className="object-cover"
-                sizes="100px"
-              />
-              {/* Match badge on poster */}
-              {matchConfidence && (
-                <div className="absolute top-1.5 left-1.5">
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/90 text-foreground">
-                    {matchConfidence}%
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+  const cardContent = (
+    <div className="group fade-in bg-card border border-border rounded-xl overflow-hidden">
+      {experimental && (
+        <div className="px-4 pt-3">
+          <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full font-medium">
+            Something Different
+          </span>
+        </div>
+      )}
 
-          {/* Content */}
-          <div className="flex-1 min-w-0 flex flex-col">
-            {/* Header: Title + meta */}
-            <div className="mb-3">
-              <h3 className="font-semibold text-base leading-snug line-clamp-2 mb-1">{title}</h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {year && <span>{year}</span>}
-                {isTV && <span>· TV</span>}
-                {rating && <span>· {rating}</span>}
-                {runtime && <span>· {runtime}</span>}
-                <PlatformBadge availableOn={availableOn} size="sm" />
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="mb-3">
-              <ActionButtons
-                feedback={feedback}
-                isUserMovie={isUserMovie}
-                isLoading={isLoading}
-                variant={variant}
-                onAddToWatchlist={handleAddToWatchlist}
-                onRemoveFromWatchlist={handleRemoveFromWatchlist}
-                onOpenRatingModal={handleOpenRating}
-                onOpenNotInterestedModal={handleOpenNotInterested}
-              />
-            </div>
-
-            {/* Expanded details */}
-            {expanded && (
-              <div className="border-t border-border pt-3 mb-3">
-                <ExpandedDetails
-                  metadata={metadata}
-                  reasoning={reasoning}
-                  matchExplanation={matchExplanation}
-                  isUserMovie={isUserMovie}
-                />
+      <div className="flex gap-4 p-4">
+        {/* Poster */}
+        <div className="flex-shrink-0 w-[100px]">
+          <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted">
+            {/* Skeleton loader */}
+            {!imageLoaded && (
+              <Skeleton className="absolute inset-0 rounded-lg" />
+            )}
+            <Image
+              src={posterUrl}
+              alt={title}
+              fill
+              className={`object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              sizes="100px"
+              onLoad={() => setImageLoaded(true)}
+            />
+            {/* Match badge on poster */}
+            {matchConfidence && (
+              <div className="absolute top-1.5 left-1.5">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-white/90 text-gray-900">
+                  {matchConfidence}%
+                </span>
               </div>
             )}
-
-            {feedback?.rating && (
-              <div className="text-sm font-medium text-primary mb-2">{getRatingDisplay()}</div>
-            )}
-
-            {feedback?.reason && (
-              <p className="text-sm text-muted-foreground italic mb-2">
-                &quot;{feedback.reason}&quot;
-              </p>
-            )}
-
-            {/* Expand toggle */}
-            <button
-              onClick={toggleExpanded}
-              className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground w-full py-2 transition-colors mt-auto"
-            >
-              {expanded ? (
-                <>
-                  <span>Show less</span>
-                  <ChevronUp className="h-3 w-3" />
-                </>
-              ) : (
-                <>
-                  <span>More info</span>
-                  <ChevronDown className="h-3 w-3" />
-                </>
-              )}
-            </button>
           </div>
         </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Header: Title + meta */}
+          <div className="mb-3">
+            <h3 className="font-semibold text-base leading-snug line-clamp-2 mb-1">{title}</h3>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {year && <span>{year}</span>}
+              {isTV && <span>· TV</span>}
+              {rating && <span>· {rating}</span>}
+              {runtime && <span>· {runtime}</span>}
+              <PlatformBadge availableOn={availableOn} size="sm" />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="mb-3">
+            <ActionButtons
+              feedback={feedback}
+              isUserMovie={isUserMovie}
+              isLoading={isLoading}
+              onAddToWatchlist={handleAddToWatchlist}
+              onRemoveFromWatchlist={handleRemoveFromWatchlist}
+              onOpenRatingModal={handleOpenRating}
+              onOpenNotInterestedModal={handleOpenNotInterested}
+            />
+          </div>
+
+          {/* Expanded details */}
+          {expanded && (
+            <div className="border-t border-border pt-3 mb-3">
+              <ExpandedDetails
+                metadata={metadata}
+                reasoning={reasoning}
+                matchExplanation={matchExplanation}
+                isUserMovie={isUserMovie}
+              />
+            </div>
+          )}
+
+          {feedback?.rating && (
+            <div className="text-sm font-medium text-primary mb-2">{getRatingDisplay()}</div>
+          )}
+
+          {feedback?.reason && (
+            <p className="text-sm text-muted-foreground italic mb-2">
+              &quot;{feedback.reason}&quot;
+            </p>
+          )}
+
+          {/* Expand toggle */}
+          <button
+            onClick={toggleExpanded}
+            className="flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground w-full py-2 transition-colors mt-auto"
+          >
+            {expanded ? (
+              <>
+                <span>Show less</span>
+                <ChevronUp className="h-3 w-3" />
+              </>
+            ) : (
+              <>
+                <span>More info</span>
+                <ChevronDown className="h-3 w-3" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Swipe hint for mobile */}
+      {swipeEnabled && (
+        <div className="px-4 pb-2 text-center">
+          <span className="text-[10px] text-muted-foreground">
+            Swipe right to add · Swipe left to pass
+          </span>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      {swipeEnabled ? (
+        <SwipeableCard
+          onSwipeRight={handleAddToWatchlist}
+          onSwipeLeft={handleOpenNotInterested}
+          rightLabel="Add"
+          leftLabel="Pass"
+          disabled={isLoading}
+        >
+          {cardContent}
+        </SwipeableCard>
+      ) : (
+        cardContent
+      )}
       <MovieModals
         title={title}
         recommendationId={data.id}

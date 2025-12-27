@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* Colors - Light Mode */
     --background: 0 0% 100%;
     --foreground: 220 20% 10%;
     --card: 0 0% 100%;
@@ -25,6 +26,8 @@
     --border: 220 10% 90%;
     --input: 220 10% 90%;
     --ring: 220 90% 50%;
+
+    /* Border Radius */
     --radius: 0.75rem;
     --radius-sm: 0.5rem;
     --radius-lg: 1rem;
@@ -70,10 +73,11 @@
     letter-spacing: -0.02em;
   }
 
-  h1 { @apply text-3xl sm:text-4xl md:text-5xl; }
-  h2 { @apply text-2xl sm:text-3xl; }
-  h3 { @apply text-xl sm:text-2xl; }
-  h4 { @apply text-lg; }
+  /* Smoother type scale progression */
+  h1 { @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl; }
+  h2 { @apply text-xl sm:text-2xl md:text-3xl; }
+  h3 { @apply text-lg sm:text-xl md:text-2xl; }
+  h4 { @apply text-base sm:text-lg; }
 
   p {
     @apply leading-relaxed;
@@ -83,144 +87,12 @@
   *:focus-visible {
     @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
   }
-
-  /* Ensure buttons and links have proper focus */
-  button:focus-visible,
-  a:focus-visible {
-    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
-  }
 }
 
 @layer utilities {
-  /* Hover effects */
-  .hover-lift {
-    @apply transition-transform duration-200 ease-out hover:-translate-y-1;
-  }
-  
-  .hover-glow {
-    @apply transition-shadow duration-200 hover:shadow-lg hover:shadow-primary/10;
-  }
-  
-  .hover-scale {
-    @apply transition-transform duration-200 ease-out hover:scale-105;
-  }
-
-  /* Fade in animation */
+  /* Fade in animation - used by movie cards */
   .fade-in {
-    animation: fadeIn 0.4s ease-out;
-  }
-  
-  .fade-in-fast {
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  /* Slide animations */
-  .slide-up {
-    animation: slideUp 0.3s ease-out;
-  }
-
-  /* Smooth transitions */
-  .smooth-transition {
-    @apply transition-all duration-200 ease-out;
-  }
-
-  /* Typography enhancements */
-  .text-gradient {
-    @apply bg-gradient-to-r from-foreground via-foreground to-foreground/70 bg-clip-text text-transparent;
-  }
-  
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  /* 3D Utilities */
-  .perspective-1000 {
-    perspective: 1000px;
-  }
-  .preserve-3d {
-    transform-style: preserve-3d;
-  }
-  .backface-hidden {
-    backface-visibility: hidden;
-  }
-  .rotate-y-180 {
-    transform: rotateY(180deg);
-  }
-
-  /* Animation utilities */
-  .animate-in {
-    animation-fill-mode: both;
-  }
-
-  .slide-in-from-bottom-4 {
-    animation: slideInFromBottom4 0.6s ease-out;
-  }
-
-  .slide-in-from-bottom-6 {
-    animation: slideInFromBottom6 0.6s ease-out;
-  }
-
-  .slide-in-from-bottom-8 {
-    animation: slideInFromBottom8 0.6s ease-out;
-  }
-
-  .slide-in-from-bottom-10 {
-    animation: slideInFromBottom10 0.6s ease-out;
-  }
-
-  .zoom-in {
-    animation: zoomIn 0.6s ease-out;
-  }
-
-
-  .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient 8s ease infinite;
-  }
-
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
-  }
-
-  .animate-shimmer {
-    animation: shimmer 3s linear infinite;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.1),
-      transparent
-    );
-    background-size: 200% 100%;
-  }
-
-  /* Animation delays */
-  .delay-100 {
-    animation-delay: 100ms;
-  }
-
-  .delay-200 {
-    animation-delay: 200ms;
-  }
-
-  .delay-300 {
-    animation-delay: 300ms;
-  }
-
-  .delay-400 {
-    animation-delay: 400ms;
-  }
-
-  .delay-500 {
-    animation-delay: 500ms;
-  }
-
-  /* Animation durations */
-  .duration-700 {
-    animation-duration: 700ms;
-  }
-
-  .duration-1000 {
-    animation-duration: 1000ms;
+    animation: fadeIn 0.3s ease-out;
   }
 
   /* Scrollbar hiding */
@@ -228,7 +100,7 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
@@ -237,127 +109,32 @@
   .touch-manipulation {
     touch-action: manipulation;
   }
+
+  /* Safe area padding for devices with notches */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0);
+  }
 }
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  .animate-in,
-  .slide-in-from-bottom-4,
-  .slide-in-from-bottom-6,
-  .slide-in-from-bottom-8,
-  .slide-in-from-bottom-10,
-  .zoom-in,
-  .animate-gradient,
-  .fade-in,
-  .fade-in-fast,
-  .slide-up {
+  .fade-in {
     animation: none !important;
     opacity: 1 !important;
-    transform: none !important;
   }
 }
 
 @keyframes fadeIn {
-  from { 
-    opacity: 0; 
-    transform: translateY(8px); 
-  }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
-  }
-}
-
-@keyframes slideUp {
-  from { 
-    opacity: 0;
-    transform: translateY(16px); 
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0); 
-  }
-}
-
-@keyframes slideInFromBottom4 {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes slideInFromBottom6 {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInFromBottom8 {
-  from {
-    opacity: 0;
-    transform: translateY(32px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInFromBottom10 {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes zoomIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-
-@keyframes gradient {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px) rotate(var(--rotate, 0deg));
-  }
-  50% {
-    transform: translateY(-20px) rotate(var(--rotate, 0deg));
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
   }
 }

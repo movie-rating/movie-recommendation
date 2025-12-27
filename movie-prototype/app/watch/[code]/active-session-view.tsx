@@ -30,6 +30,7 @@ export function ActiveSessionView({ session: initialSession, isHost }: ActiveSes
   const [loadingMore, setLoadingMore] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
+  const [isExpired, setIsExpired] = useState(() => new Date(initialSession.expires_at) < new Date())
   const router = useRouter()
   const retryCountRef = useRef(0)
 
@@ -38,11 +39,22 @@ export function ActiveSessionView({ session: initialSession, isHost }: ActiveSes
   const theirVote = isHost ? session.guest_vote : session.host_vote
   const isLastMovie = session.current_index >= session.recommendations.length - 1
 
-  // Check for session expiry
-  const isExpired = new Date(session.expires_at) < new Date()
+  // Check for session expiry periodically (client-side, since pg_cron may not be enabled)
+  useEffect(() => {
+    const checkExpiry = () => {
+      if (new Date(session.expires_at) < new Date()) {
+        setIsExpired(true)
+      }
+    }
 
-  // Check for partner disconnect (guest left)
-  const partnerDisconnected = !isHost && session.status === 'waiting'
+    // Check every 30 seconds
+    const interval = setInterval(checkExpiry, 30000)
+
+    return () => clearInterval(interval)
+  }, [session.expires_at])
+
+  // Partner disconnected = host manually ended session (status is expired but time hasn't run out)
+  const partnerDisconnected = session.status === 'expired' && !isExpired
 
   // Subscribe to realtime updates with connection status
   useEffect(() => {
@@ -195,8 +207,6 @@ export function ActiveSessionView({ session: initialSession, isHost }: ActiveSes
     return (
       <MatchFoundView
         movie={session.chosen_movie as JointRecommendation}
-        sessionId={session.id}
-        isHost={isHost}
       />
     )
   }

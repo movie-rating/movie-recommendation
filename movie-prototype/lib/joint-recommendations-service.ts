@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { generateJointRecommendations } from '@/lib/gemini'
 import { getUserMovies, getUserPlatforms } from '@/lib/db-helpers'
 import { searchMedia } from '@/lib/tmdb'
-import { updateSessionRecommendations } from '@/lib/watch-session-helpers'
+import { updateSessionRecommendations, appendSessionRecommendations } from '@/lib/watch-session-helpers'
 import type { JointRecommendation } from '@/lib/types'
 
 /**
@@ -191,14 +191,8 @@ export async function generateMoreJointRecommendations(
   // Enrich with TMDB
   const enriched = await enrichJointRecommendations(newRecs)
 
-  // Append to existing recommendations
-  const allRecommendations = [
-    ...(session.recommendations as JointRecommendation[] || []),
-    ...enriched
-  ]
-
-  // Update session
-  await updateSessionRecommendations(watchSessionId, allRecommendations)
+  // Append to session without resetting index - continues from current position
+  await appendSessionRecommendations(watchSessionId, enriched)
 
   return enriched
 }

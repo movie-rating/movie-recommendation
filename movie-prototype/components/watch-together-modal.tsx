@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Copy, Check, Loader2, X } from 'lucide-react'
-import { createWatchSession } from '@/lib/watch-session-helpers'
+import { createWatchSession, exitWatchSession } from '@/lib/watch-session-helpers'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { WatchSession } from '@/lib/types'
@@ -40,14 +40,20 @@ export function WatchTogetherModal({ isOpen, onClose, sessionId }: WatchTogether
     }
   }, [isOpen, session, sessionId, loading])
 
-  // Reset state when modal closes
+  // Clean up when modal closes: cancel pending session and reset state
   useEffect(() => {
     if (!isOpen) {
+      if (session?.status === 'waiting') {
+        // Cancel orphan session that never got a guest
+        exitWatchSession(session.id).catch((err) => {
+          console.error('Failed to cancel session:', err)
+        })
+      }
       setSession(null)
       setCopied(false)
       setError(null)
     }
-  }, [isOpen])
+  }, [isOpen, session])
 
   // Subscribe to session updates (waiting for guest)
   useEffect(() => {

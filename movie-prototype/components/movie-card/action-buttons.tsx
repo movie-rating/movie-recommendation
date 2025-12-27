@@ -9,7 +9,6 @@ interface ActionButtonsProps {
   feedback?: MovieFeedback | null
   isUserMovie: boolean
   isLoading: boolean
-  variant: 'grid' | 'horizontal'
   onAddToWatchlist: () => void
   onRemoveFromWatchlist: () => void
   onOpenRatingModal: () => void
@@ -20,7 +19,6 @@ export const ActionButtons = memo(function ActionButtons({
   feedback,
   isUserMovie,
   isLoading,
-  variant,
   onAddToWatchlist,
   onRemoveFromWatchlist,
   onOpenRatingModal,
@@ -62,16 +60,16 @@ export const ActionButtons = memo(function ActionButtons({
       <div className="space-y-2">
         {/* Primary action */}
         <Button
-          size={variant === 'grid' ? 'default' : 'sm'}
+          size="sm"
           onClick={onAddToWatchlist}
           disabled={isLoading}
           className="w-full"
         >
-          <Plus className="h-4 w-4 mr-1.5" />
+          <Plus className="h-4 w-4" />
           Add to Watchlist
         </Button>
 
-        {/* Secondary actions */}
+        {/* Secondary actions - all outline style for consistency */}
         <div className="grid grid-cols-2 gap-2">
           <Button
             size="sm"
@@ -79,18 +77,17 @@ export const ActionButtons = memo(function ActionButtons({
             onClick={onOpenRatingModal}
             disabled={isLoading}
           >
-            <Check className="h-4 w-4 mr-1" />
+            <Check className="h-4 w-4" />
             Watched
           </Button>
 
           <Button
             size="sm"
-            variant="ghost"
+            variant="outline"
             onClick={onOpenNotInterestedModal}
             disabled={isLoading}
-            className="text-muted-foreground hover:text-foreground"
           >
-            <X className="h-4 w-4 mr-1" />
+            <X className="h-4 w-4" />
             Pass
           </Button>
         </div>

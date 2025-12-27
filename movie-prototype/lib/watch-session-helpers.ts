@@ -1,5 +1,13 @@
 'use server'
 
+/**
+ * Watch Session Database Helpers
+ *
+ * Error Handling Pattern:
+ * - Query functions (getWatchSessionByCode, getWatchSessionById): Return null if not found
+ * - Mutation functions (create, update, delete): Throw Error on failure
+ */
+
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateSession } from '@/lib/session'
 import { nanoid } from 'nanoid'
@@ -64,6 +72,7 @@ export async function createWatchSession(hostSessionId: string): Promise<WatchSe
 
 /**
  * Get a watch session by its shareable code
+ * Returns null if not found (query pattern - does not throw)
  */
 export async function getWatchSessionByCode(code: string): Promise<WatchSession | null> {
   const supabase = await createClient()
@@ -80,6 +89,7 @@ export async function getWatchSessionByCode(code: string): Promise<WatchSession 
 
 /**
  * Get a watch session by its ID
+ * Returns null if not found (query pattern - does not throw)
  */
 export async function getWatchSessionById(id: string): Promise<WatchSession | null> {
   const supabase = await createClient()
@@ -141,7 +151,7 @@ export async function activateWatchSession(
 
   // Return final session state
   const finalSession = await getWatchSessionById(updatedSession.id)
-  return finalSession || updatedSession as WatchSession
+  return finalSession || (updatedSession as WatchSession)
 }
 
 /**
@@ -154,6 +164,11 @@ export async function updateSessionVote(
 ): Promise<WatchSession> {
   const userSessionId = await getOrCreateSession()
   const { session, isHost } = await verifyParticipant(sessionId, userSessionId)
+
+  // Check if session has expired
+  if (new Date(session.expires_at) < new Date()) {
+    throw new Error('Session has expired')
+  }
 
   // Prevent double voting
   const myCurrentVote = isHost ? session.host_vote : session.guest_vote
@@ -178,7 +193,7 @@ export async function updateSessionVote(
 
 /**
  * Advance to the next movie in recommendations
- * Uses atomic increment to prevent race conditions
+ * Uses atomic database function to prevent race conditions
  */
 export async function advanceToNextMovie(sessionId: string): Promise<WatchSession> {
   const userSessionId = await getOrCreateSession()
@@ -186,39 +201,27 @@ export async function advanceToNextMovie(sessionId: string): Promise<WatchSessio
 
   const supabase = await createClient()
 
-  // Use RPC for atomic increment, or fall back to conditional update
-  // This update only succeeds if both votes are 'skip'
+  // Use atomic RPC function - increments index and resets votes in single transaction
+  // Only succeeds if both votes are 'skip' and session is active
   const { data, error } = await supabase
-    .from('watch_sessions')
-    .update({
-      current_index: supabase.rpc ? undefined : 0, // Placeholder - see below
-      host_vote: null,
-      guest_vote: null
-    })
-    .eq('id', sessionId)
-    .eq('host_vote', 'skip')
-    .eq('guest_vote', 'skip')
-    .select()
+    .rpc('advance_watch_session', { session_uuid: sessionId })
     .single()
 
   if (error) {
-    // If update failed, votes may have changed - refetch
+    // RPC failed - could be votes changed or session not active
     const current = await getWatchSessionById(sessionId)
     if (current) return current
     throw new Error(`Failed to advance: ${error.message}`)
   }
 
-  // Manually increment since Supabase JS doesn't support increment in update
-  // This is still a potential race but guarded by vote check above
-  const { data: incremented, error: incError } = await supabase
-    .from('watch_sessions')
-    .update({ current_index: (data.current_index ?? 0) + 1 })
-    .eq('id', sessionId)
-    .select()
-    .single()
+  if (!data) {
+    // No rows returned - votes weren't both 'skip' or session not active
+    const current = await getWatchSessionById(sessionId)
+    if (current) return current
+    throw new Error('Failed to advance: conditions not met')
+  }
 
-  if (incError) throw new Error(`Failed to advance: ${incError.message}`)
-  return incremented as WatchSession
+  return data as WatchSession
 }
 
 /**
@@ -254,7 +257,8 @@ export async function completeSession(
 }
 
 /**
- * Update session with generated recommendations (internal use)
+ * Update session with generated recommendations (initial generation)
+ * Resets index and votes - use only for first batch
  */
 export async function updateSessionRecommendations(
   sessionId: string,
@@ -279,7 +283,47 @@ export async function updateSessionRecommendations(
 }
 
 /**
+ * Append more recommendations to existing session
+ * Does NOT reset index - continues from current position
+ */
+export async function appendSessionRecommendations(
+  sessionId: string,
+  newRecommendations: JointRecommendation[]
+): Promise<WatchSession> {
+  const supabase = await createClient()
+
+  // Get current recommendations
+  const { data: current, error: fetchError } = await supabase
+    .from('watch_sessions')
+    .select('recommendations, current_index')
+    .eq('id', sessionId)
+    .single()
+
+  if (fetchError) throw new Error(`Failed to fetch session: ${fetchError.message}`)
+
+  const existingRecs = (current?.recommendations || []) as JointRecommendation[]
+  const currentIndex = current?.current_index ?? 0
+
+  // Append new recommendations and advance index to first new one
+  const { data, error } = await supabase
+    .from('watch_sessions')
+    .update({
+      recommendations: [...existingRecs, ...newRecommendations],
+      current_index: currentIndex + 1, // Move to next (first new rec if at end)
+      host_vote: null,
+      guest_vote: null
+    })
+    .eq('id', sessionId)
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to append recommendations: ${error.message}`)
+  return data as WatchSession
+}
+
+/**
  * Exit a watch session
+ * Host leaving expires the session, guest leaving resets to waiting
  */
 export async function exitWatchSession(sessionId: string): Promise<void> {
   const userSessionId = await getOrCreateSession()

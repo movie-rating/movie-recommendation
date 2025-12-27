@@ -63,7 +63,7 @@ export function HostWaitingView({ session: initialSession }: HostWaitingViewProp
   const handleCancel = async () => {
     setCancelling(true)
     try {
-      await exitWatchSession(session.id, true)
+      await exitWatchSession(session.id)
       router.push('/recommendations')
     } catch (err) {
       console.error('Failed to cancel session:', err)

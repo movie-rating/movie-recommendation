@@ -8,8 +8,6 @@ import type { JointRecommendation } from '@/lib/types'
 
 interface MatchFoundViewProps {
   movie: JointRecommendation
-  sessionId: string
-  isHost: boolean
 }
 
 // Platform streaming URLs (best effort - some may require manual search)
@@ -153,9 +151,6 @@ export function MatchFoundView({ movie }: MatchFoundViewProps) {
             Done
           </Button>
         </div>
-
-        {/* Account prompt for anonymous users could go here */}
-        {/* <AnonymousAccountPrompt /> */}
       </div>
     </div>
   )

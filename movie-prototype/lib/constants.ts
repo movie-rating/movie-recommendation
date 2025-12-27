@@ -8,10 +8,10 @@ export const THRESHOLDS = {
 } as const
 
 export const RATING_MAP: Record<string, string> = {
-  loved: '😍 Love',
-  liked: '👍 Like',
-  meh: '😐 Meh',
-  hated: '😠 Hate'
+  loved: 'Loved it',
+  liked: 'Liked it',
+  meh: 'It was okay',
+  hated: 'Disliked'
 }
 
 export const RATING_MAP_UPPER: Record<string, string> = {

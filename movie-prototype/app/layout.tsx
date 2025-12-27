@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -34,7 +35,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <div className="pb-16 md:pb-0">
+            {children}
+          </div>
+          <BottomNav />
         </ThemeProvider>
       </body>
     </html>

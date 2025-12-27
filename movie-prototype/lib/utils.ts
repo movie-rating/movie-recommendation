@@ -41,7 +41,8 @@ export async function enrichWithTMDB(
     reasoning?: string;
     match_explanation?: string;
     confidence?: string;
-    ai_confidence?: number 
+    ai_confidence?: number;
+    available_on?: string
   }>,
   sessionId: string,
   _tasteGenes: any[] = [], // Kept for backwards compatibility, not used
@@ -65,6 +66,7 @@ export async function enrichWithTMDB(
         movie_title: rec.title,
         reasoning: rec.reasoning,
         match_explanation: rec.match_explanation,
+        available_on: rec.available_on,
         poster_path: tmdb?.poster_path,
         number_of_seasons: tmdb?.number_of_seasons,
         number_of_episodes: tmdb?.number_of_episodes,

@@ -15,10 +15,12 @@ type TabId = 'latest' | 'earlier' | 'watchlist' | 'watched' | 'not_interested'
 
 export function RecommendationsTabs({ 
   recommendations,
-  ratedCount
+  ratedCount,
+  userPlatforms = []
 }: {
   recommendations: RecommendationWithFeedback[]
   ratedCount: number
+  userPlatforms?: string[]
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('latest')
   const [loading, setLoading] = useState(false)
@@ -161,6 +163,7 @@ export function RecommendationsTabs({
                           mediaType={rec.media_type}
                           matchConfidence={rec.match_confidence}
                           isUserMovie={(rec as any).isUserMovie}
+                          availableOn={rec.available_on}
                         />
                       ))}
                     </div>
@@ -179,6 +182,7 @@ export function RecommendationsTabs({
                           mediaType={rec.media_type}
                           matchConfidence={rec.match_confidence}
                           isUserMovie={(rec as any).isUserMovie}
+                          availableOn={rec.available_on}
                         />
                       ))}
                     </div>
@@ -213,6 +217,7 @@ export function RecommendationsTabs({
                           mediaType={rec.media_type}
                           matchConfidence={rec.match_confidence}
                           isUserMovie={(rec as any).isUserMovie}
+                          availableOn={rec.available_on}
                         />
                       ))}
                     </div>
@@ -232,6 +237,7 @@ export function RecommendationsTabs({
                           mediaType={rec.media_type}
                           matchConfidence={rec.match_confidence}
                           isUserMovie={(rec as any).isUserMovie}
+                          availableOn={rec.available_on}
                         />
                       ))}
                     </div>
@@ -305,6 +311,7 @@ export function RecommendationsTabs({
                       mediaType={rec.media_type}
                       matchConfidence={rec.match_confidence}
                       isUserMovie={(rec as any).isUserMovie}
+                      availableOn={rec.available_on}
                     />
                   ))}
                 </div>
@@ -323,6 +330,7 @@ export function RecommendationsTabs({
                       mediaType={rec.media_type}
                       matchConfidence={rec.match_confidence}
                       isUserMovie={(rec as any).isUserMovie}
+                      availableOn={rec.available_on}
                     />
                   ))}
                 </div>
@@ -386,6 +394,7 @@ export function RecommendationsTabs({
                   mediaType={rec.media_type}
                   matchConfidence={rec.match_confidence}
                   isUserMovie={(rec as any).isUserMovie}
+                  availableOn={rec.available_on}
                 />
               ))}
             </div>
@@ -404,6 +413,7 @@ export function RecommendationsTabs({
                   mediaType={rec.media_type}
                   matchConfidence={rec.match_confidence}
                   isUserMovie={(rec as any).isUserMovie}
+                  availableOn={rec.available_on}
                 />
               ))}
             </div>
@@ -444,6 +454,7 @@ export function RecommendationsTabs({
         onClose={() => setShowLoadMoreModal(false)}
         onSubmit={handleLoadMore}
         loading={loading}
+        currentPlatforms={userPlatforms}
       />
     </div>
   )

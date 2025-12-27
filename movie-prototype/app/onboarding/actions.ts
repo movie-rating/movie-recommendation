@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { generateRecommendationsFromMovies } from '@/lib/gemini'
 import { enrichWithTMDB, filterDuplicateTitles } from '@/lib/utils'
 import { getPosterUrl } from '@/lib/tmdb'
+import { saveUserPlatforms } from '@/lib/db-helpers'
 
 export interface SearchResult {
   id: number
@@ -70,7 +71,8 @@ export async function submitMoviesAction(
     tmdbMovieId?: number
     tmdbTvId?: number
     mediaType?: 'movie' | 'tv'
-  }>
+  }>,
+  platforms?: string[]
 ) {
   try {
     // Basic validation
@@ -110,7 +112,21 @@ export async function submitMoviesAction(
 
     if (insertError) throw insertError
 
-    // 2. Get existing recommendations to avoid duplicates
+    // 2. Save platforms if provided (non-blocking)
+    try {
+      if (platforms && platforms.length > 0) {
+        const result = await saveUserPlatforms(supabase, sessionId, platforms)
+        if (!result.success) {
+          console.error('Failed to save platforms:', result.error)
+          // Continue anyway - platform saving is optional
+        }
+      }
+    } catch (error) {
+      console.error('Error saving platforms:', error)
+      // Continue anyway - don't block onboarding
+    }
+
+    // 3. Get existing recommendations to avoid duplicates
     const { data: existingRecs } = await supabase
       .from('recommendations')
       .select('movie_title')
@@ -121,17 +137,19 @@ export async function submitMoviesAction(
       ...movies.map(m => m.title)
     ]
 
-    // 3. Generate recommendations directly from movies
+    // 4. Generate recommendations directly from movies with platform constraint
     const { safe, experimental } = await generateRecommendationsFromMovies(
       movies.map(m => ({
         movie_title: m.title,
         sentiment: m.sentiment,
         reason: m.reason
       })),
-      existingTitles
+      existingTitles,
+      undefined,
+      platforms
     )
 
-    // 4. Enrich with TMDB data
+    // 5. Enrich with TMDB data
     const [enrichedSafe, enrichedExp] = await Promise.all([
       enrichWithTMDB(safe, sessionId, [], false),
       enrichWithTMDB(experimental, sessionId, [], true)
@@ -139,11 +157,11 @@ export async function submitMoviesAction(
 
     const enrichedAll = [...enrichedSafe, ...enrichedExp]
 
-    // 5. Filter duplicates and prepare for insert
+    // 6. Filter duplicates and prepare for insert
     const enriched = filterDuplicateTitles(enrichedAll, existingTitles)
     const toInsert = enriched.map(({ title_lower, ...rest }) => rest)
 
-    // 6. Store recommendations
+    // 7. Store recommendations
     if (toInsert.length > 0) {
       await supabase.from('recommendations').insert(toInsert)
     }

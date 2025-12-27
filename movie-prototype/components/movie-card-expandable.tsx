@@ -31,6 +31,7 @@ interface MovieCardExpandableProps {
   mediaType?: MediaType
   matchConfidence?: number
   isUserMovie?: boolean // Flag for user-added movies (not recommendations)
+  availableOn?: string | null
 }
 
 export function MovieCardExpandable({ 
@@ -44,7 +45,8 @@ export function MovieCardExpandable({
   movieDetails,
   mediaType = 'movie',
   matchConfidence,
-  isUserMovie = false
+  isUserMovie = false,
+  availableOn
 }: MovieCardExpandableProps) {
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
@@ -138,6 +140,11 @@ export function MovieCardExpandable({
                 {isTV ? 'TV' : 'Movie'}
               </span>
               {year && <span className="text-xs text-muted-foreground">{year}</span>}
+              {availableOn && (
+                <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary font-medium">
+                  {availableOn}
+                </span>
+              )}
             </div>
           </div>
 

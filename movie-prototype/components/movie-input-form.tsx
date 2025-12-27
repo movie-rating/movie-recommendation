@@ -8,6 +8,7 @@ import { Badge } from './ui/badge'
 import { submitMoviesAction, searchMediaAction, type SearchResult } from '@/app/onboarding/actions'
 import { THRESHOLDS, RATING_MAP } from '@/lib/constants'
 import type { Rating } from '@/lib/types'
+import { StreamingPlatformSelector } from './streaming-platform-selector'
 
 type Movie = { 
   title: string
@@ -25,6 +26,8 @@ export function MovieInputForm() {
   ])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+  const [currentStep, setCurrentStep] = useState<'movies' | 'platforms'>('movies')
   const router = useRouter()
   
   // Autocomplete state
@@ -50,6 +53,15 @@ export function MovieInputForm() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Progressive box reveal: automatically add boxes as they are completed (up to 3)
+  useEffect(() => {
+    const completedCount = movies.filter(m => m.title.trim() && m.reason.trim()).length
+    // If all current boxes are completed and we have fewer than 3 boxes, add another
+    if (completedCount === movies.length && movies.length < THRESHOLDS.MIN_MOVIES_ONBOARDING) {
+      setMovies([...movies, { title: '', sentiment: 'loved', reason: '' }])
+    }
+  }, [movies])
 
   const addMovie = () => {
     if (movies.length < THRESHOLDS.MAX_MOVIES_ONBOARDING) {
@@ -125,13 +137,23 @@ export function MovieInputForm() {
     setSearchQuery(prev => ({ ...prev, [index]: result.title }))
   }
 
+  const handleNext = () => {
+    setCurrentStep('platforms')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleBack = () => {
+    setCurrentStep('movies')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
     try {
-      const result = await submitMoviesAction(movies)
+      const result = await submitMoviesAction(movies, selectedPlatforms)
       if (result.success) {
         router.push('/recommendations')
       } else {
@@ -144,9 +166,10 @@ export function MovieInputForm() {
     }
   }
 
-  const canSubmit = movies.length >= THRESHOLDS.MIN_MOVIES_ONBOARDING && 
-    movies.every(m => m.title.trim() && m.reason.trim()) &&
-    !loading
+  const canProceedToNext = movies.length >= THRESHOLDS.MIN_MOVIES_ONBOARDING && 
+    movies.every(m => m.title.trim() && m.reason.trim())
+
+  const canSubmit = canProceedToNext && !loading
 
   const completedCount = movies.filter(m => m.title.trim() && m.reason.trim()).length
   const progressPercent = Math.min(100, (completedCount / THRESHOLDS.MIN_MOVIES_ONBOARDING) * 100)
@@ -161,6 +184,79 @@ export function MovieInputForm() {
     }
   }
 
+  // Render platform selection step
+  if (currentStep === 'platforms') {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl md:text-3xl font-bold mb-3">
+            Choose Your Streaming Platforms
+          </h2>
+          <p className="text-muted-foreground">
+            Select platforms to get more targeted recommendations (optional)
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="border-2 rounded-xl p-6 bg-card">
+            <StreamingPlatformSelector 
+              selected={selectedPlatforms}
+              onChange={setSelectedPlatforms}
+              compact={false}
+            />
+          </div>
+
+          {error && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20">
+              <p className="font-semibold mb-1">Error generating recommendations</p>
+              <p className="text-sm">{error}</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="bg-primary/10 text-primary px-4 py-3 rounded-md border border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                <div>
+                  <p className="font-semibold">Generating your recommendations...</p>
+                  <p className="text-sm">This usually takes 10-15 seconds</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleBack}
+              disabled={loading}
+              className="min-w-[150px]"
+            >
+              ← Back to Movies
+            </Button>
+            
+            <Button 
+              type="submit" 
+              disabled={loading}
+              className="min-w-[200px] flex-1"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  Generating...
+                </span>
+              ) : (
+                'Get Recommendations'
+              )}
+            </Button>
+          </div>
+        </form>
+      </div>
+    )
+  }
+
+  // Render movie input step
   return (
     <>
       <div className="mb-8 sticky top-0 bg-background z-10 pb-4 pt-2">
@@ -178,12 +274,12 @@ export function MovieInputForm() {
         </div>
         {completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING && (
           <p className="text-sm text-green-600 dark:text-green-400 mt-3 flex items-center gap-2 font-medium animate-in slide-in-from-bottom-4">
-            <span className="text-lg">✓</span> Ready to generate recommendations!
+            <span className="text-lg">✓</span> Ready to continue!
           </p>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
       {movies.map((movie, idx) => {
         const hasContent = movie.title.trim() && movie.reason.trim()
         const cardBorderClass = hasContent ? getRatingColor(movie.sentiment) : 'border-dashed border-muted'
@@ -326,81 +422,78 @@ export function MovieInputForm() {
 
               {/* Reason Textarea */}
               <div>
-                <Label htmlFor={`reason-${idx}`} className="text-xs uppercase tracking-wide text-muted-foreground font-semibold block mb-2">
-                  Why? Tell us more
-                </Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor={`reason-${idx}`} className="text-xs uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-2">
+                    Why? Tell us more
+                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-[10px] px-1.5 py-0">
+                      Required
+                    </Badge>
+                  </Label>
+                  {movie.reason.trim() && (
+                    <span className="text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Done
+                    </span>
+                  )}
+                </div>
                 <textarea
                   id={`reason-${idx}`}
-                  placeholder="What did you love/hate about it? Be specific about plot, acting, pacing, themes..."
+                  placeholder="Example: 'The cinematography was stunning, especially the desert scenes. The slow pacing really built tension. Hans Zimmer's score gave me chills...'"
                   value={movie.reason}
                   onChange={e => updateMovie(idx, 'reason', e.target.value)}
-                  className="w-full px-4 py-3 border-2 rounded-xl bg-background/50 min-h-[100px] focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all resize-none text-sm leading-relaxed"
+                  className={`w-full px-4 py-3 rounded-xl bg-background/50 min-h-[120px] focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all resize-none text-sm leading-relaxed ${
+                    movie.reason.trim() 
+                      ? 'border-2 border-green-500/30' 
+                      : 'border-[3px] border-primary/40 shadow-sm shadow-primary/10'
+                  }`}
                   disabled={loading}
                   required
                 />
+                <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
+                  <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <span>The more specific you are about what you liked or disliked, the better your recommendations will be!</span>
+                </p>
               </div>
             </div>
           </div>
         )
       })}
 
-      {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md border border-destructive/20">
-          <p className="font-semibold mb-1">Error generating recommendations</p>
-          <p className="text-sm">{error}</p>
-          <p className="text-sm mt-2">Please try again or contact support if the issue persists.</p>
-        </div>
-      )}
-
-      {loading && (
-        <div className="bg-primary/10 text-primary px-4 py-3 rounded-md border border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
-            <div>
-              <p className="font-semibold">Generating your recommendations...</p>
-              <p className="text-sm">This usually takes 10-15 seconds</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-4 items-center">
-        {movies.length < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
+        {completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING && movies.length < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
           <Button 
             type="button" 
             variant="outline" 
             onClick={addMovie}
             disabled={loading}
           >
-            + Add Movie ({movies.length}/{THRESHOLDS.MAX_MOVIES_ONBOARDING})
+            + Add More ({movies.length}/{THRESHOLDS.MAX_MOVIES_ONBOARDING})
           </Button>
         )}
         
         <Button 
-          type="submit" 
-          disabled={!canSubmit}
+          type="button"
+          onClick={handleNext}
+          disabled={!canProceedToNext}
           className="min-w-[200px]"
         >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-              Generating...
-            </span>
-          ) : (
-            'Get Recommendations'
-          )}
+          Next: Choose Platforms →
         </Button>
       </div>
 
       {!loading && (
         <p className="text-sm text-muted-foreground text-center">
           {movies.length < THRESHOLDS.MIN_MOVIES_ONBOARDING 
-            ? `Add at least ${THRESHOLDS.MIN_MOVIES_ONBOARDING - movies.length} more to continue`
-            : 'Ready to generate! Takes ~10 seconds.'
+            ? `Complete at least ${THRESHOLDS.MIN_MOVIES_ONBOARDING} to continue`
+            : 'Click Next to choose streaming platforms'
           }
         </p>
       )}
-    </form>
+    </div>
     </>
   )
 }

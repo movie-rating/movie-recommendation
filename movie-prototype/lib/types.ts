@@ -12,6 +12,7 @@ export interface Recommendation {
   tmdb_tv_id?: number | null
   reasoning: string
   match_explanation?: string
+  available_on?: string | null
   poster_path: string | null
   is_experimental: boolean
   match_confidence: number

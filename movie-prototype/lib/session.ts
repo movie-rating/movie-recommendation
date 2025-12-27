@@ -46,3 +46,8 @@ export async function getSessionId(): Promise<string | undefined> {
   return cookieStore.get(SESSION_COOKIE)?.value
 }
 
+export async function clearSession(): Promise<void> {
+  const cookieStore = await cookies()
+  cookieStore.delete(SESSION_COOKIE)
+}
+

@@ -34,7 +34,8 @@ For ai_confidence (0-100 scale):
 export async function generateRecommendationsFromMovies(
   userMovies: Array<{ movie_title: string; sentiment: string; reason: string }>,
   existingMovieTitles: string[],
-  userGuidance?: string
+  userGuidance?: string,
+  streamingPlatforms?: string[]
 ): Promise<{ safe: AIRecommendation[]; experimental: AIRecommendation[] }> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
   
@@ -57,6 +58,15 @@ ${existingMovieTitles.map(t => `- ${t}`).join('\n')}`
     ? `\n\nUSER'S CURRENT REQUEST:\n"${userGuidance}"\nBlend this with their taste profile.`
     : ''
   
+  // Build platform constraint section
+  const platformSection = streamingPlatforms && streamingPlatforms.length > 0
+    ? `\n\n🎬 STREAMING PLATFORM CONSTRAINT:
+The user has access to: ${streamingPlatforms.join(', ')}
+
+CRITICAL: Only recommend movies and TV shows that are currently available on these platforms.
+Do NOT recommend content that requires other streaming services or is not on these platforms.`
+    : ''
+  
   const prompt = `You are an entertainment expert. Generate movie and TV show recommendations.
 
 USER'S LOVED MOVIES:
@@ -64,6 +74,7 @@ ${lovedMovies.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`)
 
 ${dislikedMovies.length > 0 ? `USER'S DISLIKED MOVIES:\n${dislikedMovies.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n')}` : ''}
 ${exclusionSection}
+${platformSection}
 ${guidanceSection}
 
 Generate TWO types of recommendations:
@@ -84,15 +95,15 @@ CRITICAL REQUIREMENTS:
 - Avoid all titles in the exclusion list
 - Mix of movies and TV shows in both categories
 - Diverse genres, decades, countries
-- Each recommendation needs: title, year, reasoning (max 80 chars), match_explanation (max 120 chars), ai_confidence (0-100)
+- Each recommendation needs: title, year, reasoning (max 80 chars), match_explanation (max 120 chars), ai_confidence (0-100), available_on (which platform from user's list, if platforms provided)
 
 Respond with ONLY valid JSON:
 {
   "safe": [
-    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this matches", "ai_confidence": 85}
+    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this matches", "ai_confidence": 85, "available_on": "Netflix"}
   ],
   "experimental": [
-    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this expands their taste", "ai_confidence": 70}
+    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this expands their taste", "ai_confidence": 70, "available_on": "Disney+"}
   ]
 }`
 
@@ -201,5 +212,6 @@ type AIRecommendation = {
   reasoning: string
   match_explanation: string
   ai_confidence: number
+  available_on?: string
 }
 

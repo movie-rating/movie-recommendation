@@ -31,6 +31,7 @@ interface MovieCardHorizontalProps {
   mediaType?: MediaType
   matchConfidence?: number
   isUserMovie?: boolean
+  availableOn?: string | null
 }
 
 export function MovieCardHorizontal({ 
@@ -44,7 +45,8 @@ export function MovieCardHorizontal({
   movieDetails,
   mediaType = 'movie',
   matchConfidence,
-  isUserMovie = false
+  isUserMovie = false,
+  availableOn
 }: MovieCardHorizontalProps) {
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [showNotInterestedModal, setShowNotInterestedModal] = useState(false)
@@ -136,6 +138,11 @@ export function MovieCardHorizontal({
                 </span>
                 {year && <span className="text-muted-foreground">{year}</span>}
                 {rating && <span className="text-muted-foreground">⭐ {rating}</span>}
+                {availableOn && (
+                  <span className="px-2 py-0.5 rounded bg-primary/20 text-primary font-medium">
+                    {availableOn}
+                  </span>
+                )}
               </div>
             </div>
 

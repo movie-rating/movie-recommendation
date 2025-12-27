@@ -9,6 +9,8 @@ import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
 import { searchMediaAction } from '@/app/onboarding/actions'
+import { getUserPlatforms } from '@/lib/db-helpers'
+import { PlatformManager } from '@/components/platform-manager'
 
 // Force dynamic rendering since this page requires session data
 export const dynamic = 'force-dynamic'
@@ -43,6 +45,9 @@ export default async function RecommendationsPage() {
     .select('*')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
+  
+  // Get user's streaming platforms
+  const userPlatforms = await getUserPlatforms(supabase, sessionId)
   
   // Fetch TMDB details in parallel with error handling
   const TMDB_KEY = process.env.TMDB_API_KEY
@@ -234,15 +239,25 @@ export default async function RecommendationsPage() {
           )}
         </div>
 
+        {/* Platform Manager */}
+        <PlatformManager initialPlatforms={userPlatforms} />
+
         <RecommendationsTabs 
           recommendations={allMovies}
           ratedCount={ratedCount}
+          userPlatforms={userPlatforms}
         />
 
         <div className="mt-8 sm:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-          <Button variant="outline" asChild className="w-full sm:w-auto">
-            <Link href="/onboarding">Start Over</Link>
-          </Button>
+          <form action={async () => {
+            'use server'
+            const { startOverAction } = await import('@/app/recommendations/actions')
+            await startOverAction()
+          }}>
+            <Button variant="outline" type="submit" className="w-full sm:w-auto">
+              Start Over
+            </Button>
+          </form>
           {user && (
             <Button variant="outline" asChild className="w-full sm:w-auto">
               <Link href="/protected">Go to Dashboard</Link>

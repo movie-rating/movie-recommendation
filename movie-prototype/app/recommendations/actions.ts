@@ -1,9 +1,11 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
-import { getSessionId } from '@/lib/session'
+import { getSessionId, clearSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
 import { generateNewRecommendations } from '@/lib/recommendations-service'
+import { saveUserPlatforms } from '@/lib/db-helpers'
 
 export async function saveFeedbackAction(
   recommendationId: string,
@@ -277,5 +279,34 @@ export async function recalculateEarlierMatchesAction() {
       error: error instanceof Error ? error.message : 'Failed to recalculate match scores' 
     }
   }
+}
+
+export async function updateUserPlatformsAction(platforms: string[]) {
+  const sessionId = await getSessionId()
+  if (!sessionId) return { success: false, error: 'No session' }
+
+  try {
+    const supabase = await createClient()
+    const result = await saveUserPlatforms(supabase, sessionId, platforms)
+    
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
+
+    revalidatePath('/recommendations')
+    return { success: true }
+  } catch (error) {
+    console.error('Error updating platforms:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update platforms' 
+    }
+  }
+}
+
+export async function startOverAction() {
+  // Clear the session cookie to start fresh
+  await clearSession()
+  redirect('/onboarding')
 }
 

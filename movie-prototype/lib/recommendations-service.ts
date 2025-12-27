@@ -7,7 +7,8 @@ import { revalidatePath } from 'next/cache'
 import { THRESHOLDS } from './constants'
 import { 
   getUserMovies, 
-  getWatchedMoviesWithFeedback
+  getWatchedMoviesWithFeedback,
+  getUserPlatforms
 } from './db-helpers'
 
 type GenerateRecommendationsOptions = {
@@ -42,19 +43,31 @@ export async function generateNewRecommendations(
 
   // Fetch required data (including ALL existing recommendations to prevent duplicates)
   mark('dbFetch')
-  const [userMovies, feedbackData, existingRecs] = await Promise.all([
+  const [userMovies, feedbackData, existingRecs, userPlatforms] = await Promise.all([
     getUserMovies(supabase, sessionId),
     getWatchedMoviesWithFeedback(supabase, sessionId),
-    supabase.from('recommendations').select('movie_title').eq('session_id', sessionId)
+    supabase.from('recommendations').select('movie_title').eq('session_id', sessionId),
+    getUserPlatforms(supabase, sessionId)
   ])
   const dbFetchTime = measure('DB Fetch', 'dbFetch')
 
   // Validate minimum ratings if required
   if (options.minRatingsRequired) {
-    const ratedCount = feedbackData.filter(f => 
+    // Count rated movies from BOTH sources:
+    // 1. Feedback on recommendations (movie_feedback table)
+    const feedbackRatedCount = feedbackData.filter(f => 
       f.status === 'watched' && f.rating
     ).length
-    if (ratedCount < options.minRatingsRequired) {
+    
+    // 2. User's own movies (user_movies table - from onboarding/Already Watched)
+    // Filter out 'watchlist' sentiment as those haven't been watched/rated yet
+    const userMoviesRatedCount = userMovies.filter(m => 
+      m.sentiment !== 'watchlist'
+    ).length
+    
+    const totalRatedCount = feedbackRatedCount + userMoviesRatedCount
+    
+    if (totalRatedCount < options.minRatingsRequired) {
       return { 
         success: false, 
         error: `Need at least ${options.minRatingsRequired} rated movies` 
@@ -81,7 +94,8 @@ export async function generateNewRecommendations(
     const { safe, experimental } = await generateRecommendationsFromMovies(
       userMovies,
       existingMovieTitles,
-      options.userGuidance
+      options.userGuidance,
+      userPlatforms
     )
     const llmTime = measure('Gemini LLM', 'llm')
 

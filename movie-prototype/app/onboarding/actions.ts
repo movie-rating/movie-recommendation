@@ -81,19 +81,33 @@ export async function submitMoviesAction(
     }
 
     for (const movie of movies) {
-      if (!movie.title || movie.title.length > 200) {
-        return { success: false, error: 'Invalid movie title' };
+      // Trim whitespace and validate
+      const trimmedTitle = movie.title?.trim() || '';
+      const trimmedReason = movie.reason?.trim() || '';
+
+      if (!trimmedTitle || trimmedTitle.length > 200) {
+        return { success: false, error: 'Please enter a valid movie title' };
       }
       if (!['loved', 'liked', 'meh', 'hated'].includes(movie.sentiment)) {
         return { success: false, error: 'Invalid rating' };
       }
-      if (movie.reason && movie.reason.length > 500) {
+      if (!trimmedReason) {
+        return { success: false, error: 'Please provide a reason for your rating' };
+      }
+      if (trimmedReason.length > 500) {
         return { success: false, error: 'Reason too long (max 500 characters)' };
       }
+
+      // Update the movie object with trimmed values
+      movie.title = trimmedTitle;
+      movie.reason = trimmedReason;
     }
 
     const sessionId = await getOrCreateSession()
     const supabase = await createClient()
+
+    // Track warnings to surface to user
+    let platformWarning: string | null = null
 
     // 1. Store user movies
     const { error: insertError } = await supabase
@@ -112,18 +126,18 @@ export async function submitMoviesAction(
 
     if (insertError) throw insertError
 
-    // 2. Save platforms if provided (non-blocking)
-    try {
-      if (platforms && platforms.length > 0) {
+    // 2. Save platforms if provided - track failures to warn user
+    if (platforms && platforms.length > 0) {
+      try {
         const result = await saveUserPlatforms(supabase, sessionId, platforms)
         if (!result.success) {
           console.error('Failed to save platforms:', result.error)
-          // Continue anyway - platform saving is optional
+          platformWarning = 'Your streaming platform preferences could not be saved. Recommendations will not be filtered by platform.'
         }
+      } catch (error) {
+        console.error('Error saving platforms:', error)
+        platformWarning = 'Your streaming platform preferences could not be saved. Recommendations will not be filtered by platform.'
       }
-    } catch (error) {
-      console.error('Error saving platforms:', error)
-      // Continue anyway - don't block onboarding
     }
 
     // 3. Get existing recommendations to avoid duplicates
@@ -161,12 +175,24 @@ export async function submitMoviesAction(
     const enriched = filterDuplicateTitles(enrichedAll, existingTitles)
     const toInsert = enriched.map(({ title_lower, ...rest }) => rest)
 
-    // 7. Store recommendations
-    if (toInsert.length > 0) {
-      await supabase.from('recommendations').insert(toInsert)
+    // 7. Store recommendations - fail if none were successfully enriched
+    if (toInsert.length === 0) {
+      return {
+        success: false,
+        error: 'Unable to generate recommendations. Please try again.'
+      }
     }
 
-    return { success: true }
+    const { error: insertError2 } = await supabase.from('recommendations').insert(toInsert)
+    if (insertError2) {
+      console.error('Error storing recommendations:', insertError2)
+      return {
+        success: false,
+        error: 'Failed to save recommendations. Please try again.'
+      }
+    }
+
+    return { success: true, warning: platformWarning }
   } catch (error) {
     console.error('Error generating recommendations:', error)
     

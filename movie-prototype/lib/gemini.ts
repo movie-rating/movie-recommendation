@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { RATING_MAP_UPPER, THRESHOLDS, RECOMMENDATION_GENERATION } from './constants'
+import { filterDuplicateTitles } from './utils'
 import './env'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
@@ -121,21 +122,11 @@ Respond with ONLY valid JSON:
   const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
   const parsed = JSON.parse(cleaned)
   
-  // Filter duplicates
-  const existingLower = existingMovieTitles.map(t => t.toLowerCase())
-  
-  const filterDupes = (recs: AIRecommendation[]) => {
-    const seen = new Set<string>()
-    return recs.filter(r => {
-      const titleLower = r.title.toLowerCase()
-      if (existingLower.includes(titleLower) || seen.has(titleLower)) return false
-      seen.add(titleLower)
-      return true
-    })
-  }
-  
-  const safeFiltered = filterDupes(parsed.safe || [])
-  const experimentalFiltered = filterDupes(parsed.experimental || [])
+  // Filter duplicates using shared utility
+  const safeRecs = (parsed.safe || []) as AIRecommendation[]
+  const experimentalRecs = (parsed.experimental || []) as AIRecommendation[]
+  const safeFiltered = filterDuplicateTitles(safeRecs, existingMovieTitles, r => r.title)
+  const experimentalFiltered = filterDuplicateTitles(experimentalRecs, existingMovieTitles, r => r.title)
   
   console.log(`[Gemini] Results: ${safeFiltered.length} safe, ${experimentalFiltered.length} experimental (${(parsed.safe?.length || 0) - safeFiltered.length} safe dupes, ${(parsed.experimental?.length || 0) - experimentalFiltered.length} exp dupes)`)
   

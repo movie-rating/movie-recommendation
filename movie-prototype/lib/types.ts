@@ -43,6 +43,7 @@ export interface RecommendationWithFeedback extends Recommendation {
   posterUrl: string
   feedback: MovieFeedback | null
   movieDetails?: TMDBMovieDetails | TMDBTVDetails | null
+  isUserMovie?: boolean // Flag for user-added movies (from "Already Watched" tab)
 }
 
 // TMDB API response types

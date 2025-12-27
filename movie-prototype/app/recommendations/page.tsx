@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
+import type { Rating } from '@/lib/types'
 import { searchMediaAction } from '@/app/onboarding/actions'
 import { getUserPlatforms } from '@/lib/db-helpers'
 import { PlatformManager } from '@/components/platform-manager'
@@ -182,7 +183,7 @@ export default async function RecommendationsPage() {
         match_confidence: 0,
         feedback: {
           status: 'watched' as const,
-          rating: movie.sentiment as any,
+          rating: movie.sentiment as Rating,
           reason: movie.reason
         },
         movieDetails: movie.movieDetails,

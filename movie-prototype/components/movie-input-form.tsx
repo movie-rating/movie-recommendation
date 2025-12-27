@@ -25,7 +25,9 @@ export function MovieInputForm() {
     { title: '', sentiment: 'loved', reason: '' }
   ])
   const [loading, setLoading] = useState(false)
+  const [loadingStep, setLoadingStep] = useState<'analyzing' | 'generating' | 'enriching' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [currentStep, setCurrentStep] = useState<'movies' | 'platforms'>('movies')
   const router = useRouter()
@@ -34,6 +36,7 @@ export function MovieInputForm() {
   const [searchResults, setSearchResults] = useState<Record<number, SearchResult[]>>({})
   const [showDropdown, setShowDropdown] = useState<Record<number, boolean>>({})
   const [isSearching, setIsSearching] = useState<Record<number, boolean>>({})
+  const [searchError, setSearchError] = useState<Record<number, string | null>>({})
   const [searchQuery, setSearchQuery] = useState<Record<number, string>>({})
   const searchTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({})
   const dropdownRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -103,18 +106,36 @@ export function MovieInputForm() {
       return
     }
 
-    // Set loading state
+    // Set loading state and clear previous error
     setIsSearching(prev => ({ ...prev, [index]: true }))
+    setSearchError(prev => ({ ...prev, [index]: null }))
 
-    // Debounce search
+    // Debounce search with timeout handling
     searchTimeoutRef.current[index] = setTimeout(async () => {
       try {
-        const results = await searchMediaAction(value)
+        // Create a timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Search timed out')), 8000)
+        })
+
+        // Race between search and timeout
+        const results = await Promise.race([
+          searchMediaAction(value),
+          timeoutPromise
+        ])
+
         setSearchResults(prev => ({ ...prev, [index]: results }))
         setShowDropdown(prev => ({ ...prev, [index]: results.length > 0 }))
+        setSearchError(prev => ({ ...prev, [index]: null }))
       } catch (error) {
         console.error('Search error:', error)
         setSearchResults(prev => ({ ...prev, [index]: [] }))
+        setSearchError(prev => ({
+          ...prev,
+          [index]: error instanceof Error && error.message === 'Search timed out'
+            ? 'Search timed out. Please try again.'
+            : 'Search failed. Please try again.'
+        }))
       } finally {
         setIsSearching(prev => ({ ...prev, [index]: false }))
       }
@@ -151,16 +172,33 @@ export function MovieInputForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setWarning(null)
+    setLoadingStep('analyzing')
+
+    // Simulate progress steps while the API call runs
+    const stepTimers: NodeJS.Timeout[] = []
+    stepTimers.push(setTimeout(() => setLoadingStep('generating'), 2000))
+    stepTimers.push(setTimeout(() => setLoadingStep('enriching'), 8000))
 
     try {
       const result = await submitMoviesAction(movies, selectedPlatforms)
+      // Clear timers on completion
+      stepTimers.forEach(clearTimeout)
+
       if (result.success) {
+        // Store warning in sessionStorage to display on recommendations page
+        if (result.warning) {
+          sessionStorage.setItem('onboarding_warning', result.warning)
+        }
         router.push('/recommendations')
       } else {
         setError(result.error || 'Something went wrong')
+        setLoadingStep(null)
       }
     } catch (err) {
+      stepTimers.forEach(clearTimeout)
       setError('Failed to generate recommendations')
+      setLoadingStep(null)
     } finally {
       setLoading(false)
     }
@@ -172,7 +210,11 @@ export function MovieInputForm() {
   const canSubmit = canProceedToNext && !loading
 
   const completedCount = movies.filter(m => m.title.trim() && m.reason.trim()).length
-  const progressPercent = Math.min(100, (completedCount / THRESHOLDS.MIN_MOVIES_ONBOARDING) * 100)
+  const hasMinimum = completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING
+  // Show progress toward minimum until met, then show progress toward maximum
+  const progressPercent = hasMinimum
+    ? Math.min(100, (completedCount / THRESHOLDS.MAX_MOVIES_ONBOARDING) * 100)
+    : (completedCount / THRESHOLDS.MIN_MOVIES_ONBOARDING) * 100
 
   const getRatingColor = (rating: Rating) => {
     switch (rating) {
@@ -214,13 +256,62 @@ export function MovieInputForm() {
           )}
 
           {loading && (
-            <div className="bg-primary/10 text-primary px-4 py-3 rounded-md border border-primary/20">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
-                <div>
-                  <p className="font-semibold">Generating your recommendations...</p>
-                  <p className="text-sm">This usually takes 10-15 seconds</p>
+            <div className="bg-primary/10 text-primary px-4 py-4 rounded-md border border-primary/20">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                  <p className="font-semibold">
+                    {loadingStep === 'analyzing' && 'Analyzing your preferences...'}
+                    {loadingStep === 'generating' && 'Generating personalized recommendations...'}
+                    {loadingStep === 'enriching' && 'Loading movie details and posters...'}
+                  </p>
                 </div>
+
+                {/* Step progress indicator */}
+                <div className="flex items-center gap-2 text-sm">
+                  <div className={`flex items-center gap-1.5 ${loadingStep === 'analyzing' ? 'text-primary font-medium' : 'text-primary/60'}`}>
+                    {loadingStep === 'analyzing' ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                    <span>Analyze</span>
+                  </div>
+
+                  <div className={`w-8 h-0.5 ${loadingStep !== 'analyzing' ? 'bg-primary' : 'bg-primary/30'}`} />
+
+                  <div className={`flex items-center gap-1.5 ${loadingStep === 'generating' ? 'text-primary font-medium' : loadingStep === 'enriching' ? 'text-primary/60' : 'text-primary/40'}`}>
+                    {loadingStep === 'generating' ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    ) : loadingStep === 'enriching' ? (
+                      <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary/40" />
+                    )}
+                    <span>Generate</span>
+                  </div>
+
+                  <div className={`w-8 h-0.5 ${loadingStep === 'enriching' ? 'bg-primary' : 'bg-primary/30'}`} />
+
+                  <div className={`flex items-center gap-1.5 ${loadingStep === 'enriching' ? 'text-primary font-medium' : 'text-primary/40'}`}>
+                    {loadingStep === 'enriching' ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border-2 border-primary/40" />
+                    )}
+                    <span>Finalize</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-primary/70">This usually takes 10-15 seconds</p>
               </div>
             </div>
           )}
@@ -263,18 +354,40 @@ export function MovieInputForm() {
         <div className="flex items-center justify-between text-sm mb-3">
           <span className="text-muted-foreground font-medium">Your Progress</span>
           <span className="font-semibold text-lg">
-            {completedCount}/{THRESHOLDS.MIN_MOVIES_ONBOARDING} completed
+            {completedCount}/{hasMinimum ? THRESHOLDS.MAX_MOVIES_ONBOARDING : THRESHOLDS.MIN_MOVIES_ONBOARDING} completed
           </span>
         </div>
-        <div className="h-3 bg-muted rounded-full overflow-hidden shadow-inner">
-          <div 
-            className="h-full bg-gradient-to-r from-primary via-primary to-primary/80 transition-all duration-500 ease-out shadow-sm"
+        <div className="h-3 bg-muted rounded-full overflow-hidden shadow-inner relative">
+          <div
+            className={`h-full transition-all duration-500 ease-out shadow-sm ${
+              hasMinimum
+                ? 'bg-gradient-to-r from-green-500 via-green-500 to-green-400'
+                : 'bg-gradient-to-r from-primary via-primary to-primary/80'
+            }`}
             style={{ width: `${progressPercent}%` }}
           />
+          {/* Minimum threshold marker */}
+          {hasMinimum && (
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-green-700/50"
+              style={{ left: `${(THRESHOLDS.MIN_MOVIES_ONBOARDING / THRESHOLDS.MAX_MOVIES_ONBOARDING) * 100}%` }}
+            />
+          )}
         </div>
-        {completedCount >= THRESHOLDS.MIN_MOVIES_ONBOARDING && (
-          <p className="text-sm text-green-600 dark:text-green-400 mt-3 flex items-center gap-2 font-medium animate-in slide-in-from-bottom-4">
-            <span className="text-lg">✓</span> Ready to continue!
+        {hasMinimum ? (
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2 font-medium animate-in slide-in-from-bottom-4">
+              <span className="text-lg">✓</span> Minimum met - ready to continue!
+            </p>
+            {completedCount < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
+              <p className="text-xs text-muted-foreground">
+                Add more for better recommendations
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground mt-3">
+            Add {THRESHOLDS.MIN_MOVIES_ONBOARDING - completedCount} more to continue
           </p>
         )}
       </div>
@@ -351,7 +464,17 @@ export function MovieInputForm() {
                       <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
                     </div>
                   )}
-                  
+
+                  {/* Search Error */}
+                  {searchError[idx] && !isSearching[idx] && (
+                    <div className="mt-1 text-xs text-destructive flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {searchError[idx]}
+                    </div>
+                  )}
+
                   {/* Autocomplete Dropdown */}
                   {showDropdown[idx] && searchResults[idx]?.length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-background border-2 rounded-lg shadow-xl max-h-80 sm:max-h-96 overflow-y-auto">

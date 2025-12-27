@@ -57,7 +57,6 @@ export function MovieCardHorizontal({
   const router = useRouter()
 
   const handleAddToWatchlist = async () => {
-    fetch('http://127.0.0.1:7244/ingest/5054ccb2-5854-4192-ae02-8b80db09250d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'movie-card-horizontal.tsx:handleAddToWatchlist',message:'Watchlist clicked',data:{movieId:id,title:title},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
     const result = await saveFeedbackAction(id, 'watchlist')
     if (result.success) {
       setSuccessMessage('Added to watchlist')
@@ -125,15 +124,15 @@ export function MovieCardHorizontal({
               <div className="flex items-center gap-1.5 flex-wrap text-xs">
                 {matchConfidence && (
                   <span className={`font-semibold px-1.5 py-0.5 rounded ${
-                    matchConfidence >= 85 ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
-                    matchConfidence >= 70 ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400' :
-                    'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                    matchConfidence >= 85 ? 'bg-green-600/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' :
+                    matchConfidence >= 70 ? 'bg-blue-600/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300' :
+                    'bg-amber-600/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-300'
                   }`}>
                     {matchConfidence}%
                   </span>
                 )}
                 <span className={`px-1.5 py-0.5 rounded ${
-                  isTV ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                  isTV ? 'bg-purple-600/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' : 'bg-blue-600/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300'
                 }`}>
                   {isTV ? 'TV' : 'Movie'}
                 </span>

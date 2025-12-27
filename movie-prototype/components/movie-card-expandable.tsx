@@ -124,9 +124,9 @@ export function MovieCardExpandable({
               {matchConfidence && (
                 <div className="flex items-center gap-1 mt-1">
                   <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    matchConfidence >= 85 ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
-                    matchConfidence >= 70 ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400' :
-                    'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                    matchConfidence >= 85 ? 'bg-green-600/20 text-green-700 dark:bg-green-500/30 dark:text-green-300' :
+                    matchConfidence >= 70 ? 'bg-blue-600/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300' :
+                    'bg-amber-600/20 text-amber-700 dark:bg-amber-500/30 dark:text-amber-300'
                   }`}>
                     {matchConfidence}% Match
                   </div>
@@ -136,7 +136,7 @@ export function MovieCardExpandable({
             
             <div className="flex flex-col items-end gap-1">
               <span className={`text-xs px-1.5 py-0.5 rounded ${
-                isTV ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                isTV ? 'bg-purple-600/20 text-purple-700 dark:bg-purple-500/30 dark:text-purple-300' : 'bg-blue-600/20 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300'
               }`}>
                 {isTV ? 'TV' : 'Movie'}
               </span>

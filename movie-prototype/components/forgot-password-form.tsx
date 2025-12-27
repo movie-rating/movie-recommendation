@@ -32,13 +32,16 @@ export function ForgotPasswordForm({
 
     try {
       // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/update-password`,
       });
-      if (error) throw error;
+      // Always show success to prevent user enumeration attacks
+      // If the email doesn't exist, Supabase won't send an email but we don't reveal that
       setSuccess(true);
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      // Only show error for network/server issues, not for "user not found"
+      console.error('Password reset error:', error);
+      setError("Unable to process your request. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -52,11 +55,22 @@ export function ForgotPasswordForm({
             <CardTitle className="text-2xl">Check Your Email</CardTitle>
             <CardDescription>Password reset instructions sent</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
+              If an account exists with this email address, you will receive
+              password reset instructions shortly.
             </p>
+            <p className="text-sm text-muted-foreground">
+              Don&apos;t forget to check your spam folder. The email may take a few minutes to arrive.
+            </p>
+            <div className="pt-2">
+              <Link
+                href="/auth/login"
+                className="text-sm text-primary underline underline-offset-4"
+              >
+                Back to Login
+              </Link>
+            </div>
           </CardContent>
         </Card>
       ) : (

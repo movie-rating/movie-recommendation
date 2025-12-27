@@ -6,31 +6,34 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Duplicate filtering utility
-export function filterDuplicateTitles<T extends { title?: string; movie_title?: string }>(
+// Filters out items whose title matches existing titles or duplicates within the batch
+export function filterDuplicateTitles<T>(
   items: T[],
-  existingTitles: string[]
+  existingTitles: string[],
+  getTitle: (item: T) => string = (item) => {
+    const anyItem = item as { title?: string; movie_title?: string }
+    return anyItem.title || anyItem.movie_title || ''
+  }
 ): T[] {
   const existingLower = existingTitles.map(t => t.toLowerCase())
   const seen = new Set<string>()
-  
-  const result = items.filter(item => {
-    const title = (item.title || item.movie_title || '').toLowerCase()
-    
+
+  return items.filter(item => {
+    const title = getTitle(item).toLowerCase()
+
     // Check against existing titles
     if (existingLower.includes(title)) {
       return false
     }
-    
+
     // Check against items we've already seen in this batch
     if (seen.has(title)) {
       return false
     }
-    
+
     seen.add(title)
     return true
   })
-  
-  return result
 }
 
 // TMDB enrichment helper

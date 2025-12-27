@@ -23,3 +23,4 @@ COMMENT ON COLUMN taste_genes.is_dealbreaker IS 'True if this is an absolute req
 COMMENT ON COLUMN taste_genes.updated_at IS 'Timestamp of last modification to this gene';
 
 
+

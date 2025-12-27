@@ -2,3 +2,4 @@
 ALTER TABLE recommendations 
 ADD COLUMN available_on TEXT;
 
+

@@ -131,3 +131,4 @@ Your app is now live on the internet! Share the URL with your friends and enjoy 
 - Vercel: https://vercel.com/dashboard
 - Supabase: https://supabase.com/dashboard
 
+

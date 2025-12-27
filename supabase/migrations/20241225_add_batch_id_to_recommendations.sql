@@ -10,3 +10,4 @@ CREATE INDEX idx_recommendations_batch_id ON recommendations(batch_id);
 -- Backfill existing recommendations with batch_id = 1
 UPDATE recommendations SET batch_id = 1 WHERE batch_id IS NULL;
 
+

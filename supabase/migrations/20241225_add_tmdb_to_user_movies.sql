@@ -19,3 +19,4 @@ COMMENT ON COLUMN user_movies.tmdb_movie_id IS 'TMDB movie ID (mutually exclusiv
 COMMENT ON COLUMN user_movies.tmdb_tv_id IS 'TMDB TV show ID (mutually exclusive with tmdb_movie_id)';
 COMMENT ON COLUMN user_movies.media_type IS 'Type of media: movie or tv';
 
+

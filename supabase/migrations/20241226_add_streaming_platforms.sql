@@ -19,3 +19,4 @@ COMMENT ON TABLE user_streaming_platforms IS
 COMMENT ON COLUMN user_streaming_platforms.platform_name IS 
   'Name of streaming platform (e.g., Netflix, Hulu, Disney+)';
 
+

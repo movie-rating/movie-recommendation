@@ -27,3 +27,4 @@ ON recommendations(match_confidence DESC);
 COMMENT ON COLUMN recommendations.match_confidence IS 'AI-generated match score (0-100) indicating how well the recommendation fits user preferences';
 
 
+

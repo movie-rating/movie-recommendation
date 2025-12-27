@@ -11,3 +11,4 @@ ON movie_feedback(genes_extracted, session_id);
 COMMENT ON COLUMN movie_feedback.genes_extracted IS 'True if taste genes have been extracted from this feedback';
 
 
+

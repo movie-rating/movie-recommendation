@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { MovieCardExpandable } from './movie-card-expandable'
-import { MovieCardHorizontal } from './movie-card-horizontal'
+import { MovieCard } from './movie-card'
 import { Button } from './ui/button'
 import { generateMoreRecommendationsAction, recalculateEarlierMatchesAction } from '@/app/recommendations/actions'
 import { useRouter } from 'next/navigation'
@@ -110,8 +109,6 @@ export function RecommendationsTabs({
     : activeTab === 'watched' ? watched 
     : notInterested
 
-  const hasAnyFeedback = watched.length > 0 || notInterested.length > 0
-
   return (
     <div>
       {/* Tab Navigation with improved mobile UX */}
@@ -169,7 +166,7 @@ export function RecommendationsTabs({
               <p className="text-lg mb-2">No new recommendations</p>
               {recommendations.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-sm">You've reviewed all your latest recommendations!</p>
+                  <p className="text-sm">You&apos;ve reviewed all your latest recommendations!</p>
                   {ratedCount >= THRESHOLDS.MIN_RATINGS_FOR_MORE && (
                     <Button
                       variant="outline"
@@ -194,8 +191,9 @@ export function RecommendationsTabs({
                   {isMobile ? (
                     <div className="space-y-4">
                       {regular.map(rec => (
-                        <MovieCardHorizontal
+                        <MovieCard
                           key={rec.id}
+                          variant="horizontal"
                           id={rec.id}
                           title={rec.movie_title}
                           posterUrl={rec.posterUrl}
@@ -211,10 +209,11 @@ export function RecommendationsTabs({
                       ))}
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                       {regular.map(rec => (
-                        <MovieCardExpandable
+                        <MovieCard
                           key={rec.id}
+                          variant="grid"
                           id={rec.id}
                           title={rec.movie_title}
                           posterUrl={rec.posterUrl}
@@ -235,20 +234,18 @@ export function RecommendationsTabs({
 
               {/* Experimental section */}
               {experimental.length > 0 && (
-                <div className="mb-12 p-4 sm:p-6 bg-primary/5 rounded-lg border border-primary/20">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-2xl">🎲</span>
-                    <h2 className="text-2xl font-bold">Try Something Different</h2>
-                  </div>
-                  <p className="text-muted-foreground mb-6">
-                    Based on your taste profile, these might surprise you in a good way
+                <div className="mb-12 p-4 sm:p-6 bg-muted/30 rounded-2xl border border-border">
+                  <h2 className="text-xl font-semibold mb-2">Something Different</h2>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Based on your taste, these might surprise you
                   </p>
                   
                   {isMobile ? (
                     <div className="space-y-4">
                       {experimental.map(rec => (
-                        <MovieCardHorizontal
+                        <MovieCard
                           key={rec.id}
+                          variant="horizontal"
                           id={rec.id}
                           title={rec.movie_title}
                           posterUrl={rec.posterUrl}
@@ -265,10 +262,11 @@ export function RecommendationsTabs({
                       ))}
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                       {experimental.map(rec => (
-                        <MovieCardExpandable
+                        <MovieCard
                           key={rec.id}
+                          variant="grid"
                           id={rec.id}
                           title={rec.movie_title}
                           posterUrl={rec.posterUrl}
@@ -342,8 +340,9 @@ export function RecommendationsTabs({
               {isMobile ? (
                 <div className="space-y-4 mb-8">
                   {earlierRecs.map(rec => (
-                    <MovieCardHorizontal
+                    <MovieCard
                       key={rec.id}
+                      variant="horizontal"
                       id={rec.id}
                       title={rec.movie_title}
                       posterUrl={rec.posterUrl}
@@ -359,10 +358,11 @@ export function RecommendationsTabs({
                   ))}
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
                   {earlierRecs.map(rec => (
-                    <MovieCardExpandable
+                    <MovieCard
                       key={rec.id}
+                      variant="grid"
                       id={rec.id}
                       title={rec.movie_title}
                       posterUrl={rec.posterUrl}
@@ -393,7 +393,7 @@ export function RecommendationsTabs({
                   size="lg"
                   className="w-full md:w-auto border-2 border-dashed border-primary/50 hover:border-primary hover:bg-primary/5"
                 >
-                  + Add Movie You've Watched
+                  + Add Movie You&apos;ve Watched
                 </Button>
               ) : (
                 <AddWatchedMovieForm 
@@ -417,12 +417,6 @@ export function RecommendationsTabs({
 
           {currentMovies.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              {activeTab === 'earlier' && (
-                <>
-                  <p className="text-lg mb-2">No earlier recommendations</p>
-                  <p className="text-sm">Generate more recommendations and your current ones will move here.</p>
-                </>
-              )}
               {activeTab === 'watchlist' && (
                 <>
                   <p className="text-lg mb-2">Your watchlist is empty</p>
@@ -435,10 +429,10 @@ export function RecommendationsTabs({
               {activeTab === 'watched' && (
                 <>
                   <p className="text-lg mb-2">No watched movies yet</p>
-                  <p className="text-sm mb-4">Add movies you've watched to improve your recommendations!</p>
+                  <p className="text-sm mb-4">Add movies you&apos;ve watched to improve your recommendations!</p>
                   {!showAddMovieForm && (
                     <Button variant="outline" onClick={() => setShowAddMovieForm(true)}>
-                      + Add a Movie You've Watched
+                      + Add a Movie You&apos;ve Watched
                     </Button>
                   )}
                 </>
@@ -453,8 +447,9 @@ export function RecommendationsTabs({
           ) : isMobile ? (
             <div className="space-y-4 mb-8">
               {currentMovies.map(rec => (
-                <MovieCardHorizontal
+                <MovieCard
                   key={rec.id}
+                  variant="horizontal"
                   id={rec.id}
                   title={rec.movie_title}
                   posterUrl={rec.posterUrl}
@@ -470,10 +465,11 @@ export function RecommendationsTabs({
               ))}
             </div>
           ) : (
-            <div className="grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
               {currentMovies.map(rec => (
-                <MovieCardExpandable
+                <MovieCard
                   key={rec.id}
+                  variant="grid"
                   id={rec.id}
                   title={rec.movie_title}
                   posterUrl={rec.posterUrl}

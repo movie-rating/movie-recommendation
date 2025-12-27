@@ -4,12 +4,12 @@ import { getSessionId } from './session'
 import { generateRecommendationsFromMovies } from './gemini'
 import { enrichWithTMDB, filterDuplicateTitles } from './utils'
 import { revalidatePath } from 'next/cache'
-import { THRESHOLDS } from './constants'
-import { 
-  getUserMovies, 
+import {
+  getUserMovies,
   getWatchedMoviesWithFeedback,
   getUserPlatforms
 } from './db-helpers'
+import { type Result, ok, err, logError } from './errors'
 
 type GenerateRecommendationsOptions = {
   minRatingsRequired?: number
@@ -22,7 +22,7 @@ type GenerateRecommendationsOptions = {
  */
 export async function generateNewRecommendations(
   options: GenerateRecommendationsOptions = {}
-): Promise<{ success: boolean; error?: string }> {
+): Promise<Result> {
   // Timing helpers
   const timings: Record<string, number> = {}
   const mark = (label: string) => {
@@ -35,9 +35,11 @@ export async function generateNewRecommendations(
   }
 
   mark('total')
-  
+
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) {
+    return err('No session found. Please refresh the page.', 'AUTH_ERROR')
+  }
 
   const supabase = await createClient()
 
@@ -55,23 +57,23 @@ export async function generateNewRecommendations(
   if (options.minRatingsRequired) {
     // Count rated movies from BOTH sources:
     // 1. Feedback on recommendations (movie_feedback table)
-    const feedbackRatedCount = feedbackData.filter(f => 
+    const feedbackRatedCount = feedbackData.filter(f =>
       f.status === 'watched' && f.rating
     ).length
-    
+
     // 2. User's own movies (user_movies table - from onboarding/Already Watched)
     // Filter out 'watchlist' sentiment as those haven't been watched/rated yet
-    const userMoviesRatedCount = userMovies.filter(m => 
+    const userMoviesRatedCount = userMovies.filter(m =>
       m.sentiment !== 'watchlist'
     ).length
-    
+
     const totalRatedCount = feedbackRatedCount + userMoviesRatedCount
-    
+
     if (totalRatedCount < options.minRatingsRequired) {
-      return { 
-        success: false, 
-        error: `Need at least ${options.minRatingsRequired} rated movies` 
-      }
+      return err(
+        `Rate at least ${options.minRatingsRequired} movies to get more recommendations`,
+        'VALIDATION_ERROR'
+      )
     }
   }
 
@@ -127,8 +129,8 @@ export async function generateNewRecommendations(
     const nextBatchId = (maxBatch?.batch_id || 0) + 1
     measure('Get Batch ID', 'batchId')
 
-    // Assign batch_id to all new recommendations
-    const toInsert = enriched.map(({ title_lower, ...rest }) => ({
+    // Assign batch_id to all new recommendations (exclude title_lower used for dedup)
+    const toInsert = enriched.map(({ title_lower: _titleLower, ...rest }) => ({
       ...rest,
       batch_id: nextBatchId
     }))
@@ -138,24 +140,24 @@ export async function generateNewRecommendations(
       console.log('\n=== PERFORMANCE BREAKDOWN ===')
       console.log(`No recommendations generated (all duplicates)`)
       console.log(`TOTAL: ${totalTime}ms\n`)
-      
-      return { 
-        success: false, 
-        error: 'No new unique recommendations generated. All were duplicates.' 
-      }
+
+      return err(
+        'No new unique recommendations found. Try adjusting your preferences.',
+        'VALIDATION_ERROR'
+      )
     }
 
     mark('insert')
-    const { error } = await supabase.from('recommendations').insert(toInsert)
+    const { error: dbError } = await supabase.from('recommendations').insert(toInsert)
     const insertTime = measure('DB Insert', 'insert')
-    
-    if (error) {
-      console.error('Error storing recommendations:', error)
-      return { success: false, error: 'Failed to store recommendations' }
+
+    if (dbError) {
+      logError('generateNewRecommendations', dbError.message, { code: 'DATABASE_ERROR', cause: dbError })
+      return err('Failed to save recommendations. Please try again.', 'DATABASE_ERROR')
     }
 
     const totalTime = measure('TOTAL', 'total')
-    
+
     // Performance breakdown summary
     console.log('\n=== PERFORMANCE BREAKDOWN ===')
     console.log(`DB Fetch:         ${dbFetchTime.toString().padStart(6)}ms (${((dbFetchTime/totalTime)*100).toFixed(1)}%)`)
@@ -167,13 +169,11 @@ export async function generateNewRecommendations(
     console.log(`Inserted:         ${toInsert.length} recommendations\n`)
 
     revalidatePath('/recommendations')
-    return { success: true }
+    return ok(undefined, `Generated ${toInsert.length} new recommendations`)
   } catch (error) {
-    console.error('Error generating recommendations:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to generate recommendations' 
-    }
+    const message = error instanceof Error ? error.message : 'Failed to generate recommendations'
+    logError('generateNewRecommendations', message, { code: 'API_ERROR', cause: error })
+    return err(message, 'API_ERROR')
   }
 }
 

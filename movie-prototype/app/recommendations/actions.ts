@@ -6,15 +6,16 @@ import { redirect } from 'next/navigation'
 import { THRESHOLDS } from '@/lib/constants'
 import { generateNewRecommendations } from '@/lib/recommendations-service'
 import { saveUserPlatforms } from '@/lib/db-helpers'
+import { type Result, ok, err, logError } from '@/lib/errors'
 
 export async function saveFeedbackAction(
   recommendationId: string,
   status: 'to_watch' | 'watched' | 'not_interested' | 'watchlist',
   rating?: string,
   reason?: string
-) {
+): Promise<Result> {
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   const supabase = await createClient()
   
@@ -82,12 +83,12 @@ export async function saveFeedbackAction(
   }
 
   revalidatePath('/recommendations')
-  return { success: true }
+  return ok()
 }
 
-export async function removeFeedbackAction(recommendationId: string) {
+export async function removeFeedbackAction(recommendationId: string): Promise<Result> {
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   const supabase = await createClient()
   
@@ -98,17 +99,17 @@ export async function removeFeedbackAction(recommendationId: string) {
     .eq('session_id', sessionId)
 
   if (error) {
-    console.error('Error removing feedback:', error)
-    return { success: false, error: error.message }
+    logError('removeFeedbackAction', error.message, { code: 'DATABASE_ERROR', cause: error })
+    return err('Failed to remove feedback', 'DATABASE_ERROR')
   }
 
   revalidatePath('/recommendations')
-  return { success: true }
+  return ok()
 }
 
-export async function clearUnwatchedRecommendationsAction() {
+export async function clearUnwatchedRecommendationsAction(): Promise<Result> {
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   const supabase = await createClient()
 
@@ -136,13 +137,13 @@ export async function clearUnwatchedRecommendationsAction() {
       .in('id', recsToDelete)
 
     if (error) {
-      console.error('Error clearing unwatched:', error)
-      return { success: false, error: 'Failed to clear old recommendations' }
+      logError('clearUnwatchedRecommendationsAction', error.message, { code: 'DATABASE_ERROR', cause: error })
+      return err('Failed to clear old recommendations', 'DATABASE_ERROR')
     }
   }
 
   revalidatePath('/recommendations')
-  return { success: true }
+  return ok()
 }
 
 export async function generateMoreRecommendationsAction(userGuidance?: string) {
@@ -161,20 +162,20 @@ export async function addWatchedMovieAction(
   tmdbMovieId?: number,
   tmdbTvId?: number,
   mediaType?: 'movie' | 'tv'
-) {
+): Promise<Result> {
   // Basic validation
   if (!title || title.length > 200) {
-    return { success: false, error: 'Invalid movie title' };
+    return err('Invalid movie title', 'VALIDATION_ERROR')
   }
   if (!['loved', 'liked', 'meh', 'hated'].includes(sentiment)) {
-    return { success: false, error: 'Invalid rating' };
+    return err('Invalid rating', 'VALIDATION_ERROR')
   }
   if (reason && reason.length > 500) {
-    return { success: false, error: 'Reason too long (max 500 characters)' };
+    return err('Reason too long (max 500 characters)', 'VALIDATION_ERROR')
   }
 
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   const supabase = await createClient()
   
@@ -192,17 +193,17 @@ export async function addWatchedMovieAction(
     })
 
   if (error) {
-    console.error('Error adding watched movie:', error)
-    return { success: false, error: error.message }
+    logError('addWatchedMovieAction', error.message, { code: 'DATABASE_ERROR', cause: error })
+    return err('Failed to add movie', 'DATABASE_ERROR')
   }
 
   revalidatePath('/recommendations')
-  return { success: true }
+  return ok()
 }
 
-export async function recalculateEarlierMatchesAction() {
+export async function recalculateEarlierMatchesAction(): Promise<Result<{ updated: number }>> {
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   const supabase = await createClient()
 
@@ -212,7 +213,7 @@ export async function recalculateEarlierMatchesAction() {
     const userMovies = await getUserMovies(supabase, sessionId)
 
     if (userMovies.length === 0) {
-      return { success: false, error: 'No taste profile found. Add some movies first.' }
+      return err('No taste profile found. Add some movies first.', 'VALIDATION_ERROR')
     }
 
     // Get the max batch_id to identify earlier recommendations
@@ -234,12 +235,12 @@ export async function recalculateEarlierMatchesAction() {
       .lt('batch_id', maxBatchId)
 
     if (fetchError) {
-      console.error('Error fetching recommendations:', fetchError)
-      return { success: false, error: 'Failed to fetch recommendations' }
+      logError('recalculateEarlierMatchesAction', fetchError.message, { code: 'DATABASE_ERROR', cause: fetchError })
+      return err('Failed to fetch recommendations', 'DATABASE_ERROR')
     }
 
     if (!earlierRecs || earlierRecs.length === 0) {
-      return { success: false, error: 'No earlier recommendations to recalculate' }
+      return err('No earlier recommendations to recalculate', 'NOT_FOUND')
     }
 
     // Call batch scoring function
@@ -259,48 +260,40 @@ export async function recalculateEarlierMatchesAction() {
     // Check for any errors
     const errors = results.filter(r => r.error)
     if (errors.length > 0) {
-      console.error('Some updates failed:', errors)
-      return { 
-        success: false, 
-        error: `Failed to update ${errors.length} of ${scoreMap.size} recommendations` 
-      }
+      logError('recalculateEarlierMatchesAction', `${errors.length} updates failed`, { code: 'DATABASE_ERROR' })
+      return err(`Failed to update ${errors.length} of ${scoreMap.size} recommendations`, 'DATABASE_ERROR')
     }
 
     revalidatePath('/recommendations')
-    return { 
-      success: true, 
-      updated: scoreMap.size,
-      message: `Updated ${scoreMap.size} match score${scoreMap.size === 1 ? '' : 's'} based on your current taste profile` 
-    }
+    return ok(
+      { updated: scoreMap.size },
+      `Updated ${scoreMap.size} match score${scoreMap.size === 1 ? '' : 's'} based on your current taste profile`
+    )
   } catch (error) {
-    console.error('Error recalculating matches:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to recalculate match scores' 
-    }
+    const message = error instanceof Error ? error.message : 'Failed to recalculate match scores'
+    logError('recalculateEarlierMatchesAction', message, { code: 'API_ERROR', cause: error })
+    return err(message, 'API_ERROR')
   }
 }
 
-export async function updateUserPlatformsAction(platforms: string[]) {
+export async function updateUserPlatformsAction(platforms: string[]): Promise<Result> {
   const sessionId = await getSessionId()
-  if (!sessionId) return { success: false, error: 'No session' }
+  if (!sessionId) return err('No session found', 'AUTH_ERROR')
 
   try {
     const supabase = await createClient()
     const result = await saveUserPlatforms(supabase, sessionId, platforms)
-    
+
     if (!result.success) {
-      return { success: false, error: result.error }
+      return err(result.error || 'Failed to update platforms', 'DATABASE_ERROR')
     }
 
     revalidatePath('/recommendations')
-    return { success: true }
+    return ok()
   } catch (error) {
-    console.error('Error updating platforms:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update platforms' 
-    }
+    const message = error instanceof Error ? error.message : 'Failed to update platforms'
+    logError('updateUserPlatformsAction', message, { code: 'DATABASE_ERROR', cause: error })
+    return err(message, 'DATABASE_ERROR')
   }
 }
 

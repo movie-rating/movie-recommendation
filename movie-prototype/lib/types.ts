@@ -84,3 +84,34 @@ export interface TMDBTVDetails {
   }
 }
 
+// Watch Together types
+export type WatchSessionStatus = 'waiting' | 'active' | 'completed' | 'expired'
+export type SessionVote = 'skip' | 'watch' | null
+
+export interface JointRecommendation {
+  tmdb_id: number
+  title: string
+  poster_path: string | null
+  release_year: number
+  genres: string[]
+  runtime: number | null
+  vote_average: number
+  overview: string
+  streaming_platforms: string[]
+}
+
+export interface WatchSession {
+  id: string
+  code: string
+  host_session_id: string
+  guest_session_id: string | null
+  status: WatchSessionStatus
+  recommendations: JointRecommendation[]
+  current_index: number
+  host_vote: SessionVote
+  guest_vote: SessionVote
+  chosen_movie: JointRecommendation | null
+  created_at: string
+  expires_at: string
+}
+

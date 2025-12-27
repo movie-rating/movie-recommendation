@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Badge } from './ui/badge'
+import { Check } from 'lucide-react'
 import { submitMoviesAction, searchMediaAction, type SearchResult } from '@/app/onboarding/actions'
 import { THRESHOLDS, RATING_MAP } from '@/lib/constants'
 import type { Rating } from '@/lib/types'
@@ -350,46 +351,40 @@ export function MovieInputForm() {
   // Render movie input step
   return (
     <>
-      <div className="mb-8 sticky top-0 bg-background z-10 pb-4 pt-2">
-        <div className="flex items-center justify-between text-sm mb-3">
-          <span className="text-muted-foreground font-medium">Your Progress</span>
-          <span className="font-semibold text-lg">
-            {completedCount}/{hasMinimum ? THRESHOLDS.MAX_MOVIES_ONBOARDING : THRESHOLDS.MIN_MOVIES_ONBOARDING} completed
+      <div className="mb-8 sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-4 -mx-4 px-4 border-b border-border/50">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-muted-foreground">Progress</span>
+          <span className="text-sm font-medium">
+            {completedCount} of {hasMinimum ? THRESHOLDS.MAX_MOVIES_ONBOARDING : THRESHOLDS.MIN_MOVIES_ONBOARDING}
           </span>
         </div>
-        <div className="h-3 bg-muted rounded-full overflow-hidden shadow-inner relative">
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 ease-out shadow-sm ${
-              hasMinimum
-                ? 'bg-gradient-to-r from-green-500 via-green-500 to-green-400'
-                : 'bg-gradient-to-r from-primary via-primary to-primary/80'
+            className={`h-full transition-all duration-500 ease-out rounded-full ${
+              hasMinimum ? 'bg-success' : 'bg-primary'
             }`}
             style={{ width: `${progressPercent}%` }}
           />
-          {/* Minimum threshold marker */}
-          {hasMinimum && (
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-green-700/50"
-              style={{ left: `${(THRESHOLDS.MIN_MOVIES_ONBOARDING / THRESHOLDS.MAX_MOVIES_ONBOARDING) * 100}%` }}
-            />
+        </div>
+        <div className="mt-3">
+          {hasMinimum ? (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-success font-medium flex items-center gap-1.5">
+                <Check className="h-4 w-4" />
+                Ready to continue
+              </p>
+              {completedCount < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
+                <p className="text-xs text-muted-foreground">
+                  Add more for better results
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {THRESHOLDS.MIN_MOVIES_ONBOARDING - completedCount} more needed
+            </p>
           )}
         </div>
-        {hasMinimum ? (
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2 font-medium animate-in slide-in-from-bottom-4">
-              <span className="text-lg">✓</span> Minimum met - ready to continue!
-            </p>
-            {completedCount < THRESHOLDS.MAX_MOVIES_ONBOARDING && (
-              <p className="text-xs text-muted-foreground">
-                Add more for better recommendations
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground mt-3">
-            Add {THRESHOLDS.MIN_MOVIES_ONBOARDING - completedCount} more to continue
-          </p>
-        )}
       </div>
 
       <div className="space-y-6">

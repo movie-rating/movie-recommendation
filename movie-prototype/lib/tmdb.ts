@@ -1,7 +1,141 @@
 import './env'
+import type { TMDBMovieDetails, TMDBTVDetails, MediaType } from './types'
+import pLimit from 'p-limit'
 
 const TMDB_KEY = process.env.TMDB_API_KEY
 const BASE = 'https://api.themoviedb.org/3'
+
+// Limit concurrent TMDB requests to avoid rate limiting
+const CONCURRENCY_LIMIT = 5
+const limit = pLimit(CONCURRENCY_LIMIT)
+
+type TMDBDetailsResult = {
+  id: string
+  details: TMDBMovieDetails | TMDBTVDetails | null
+  error?: string
+}
+
+/**
+ * Batch fetch TMDB details for multiple items with concurrency control
+ * Limits parallel requests to avoid rate limiting from TMDB API
+ */
+export async function batchFetchTMDBDetails(
+  items: Array<{
+    id: string
+    tmdbId: number | null | undefined
+    mediaType: MediaType
+  }>
+): Promise<Map<string, TMDBMovieDetails | TMDBTVDetails | null>> {
+  if (!TMDB_KEY) {
+    console.error('[TMDB] API key not configured')
+    return new Map(items.map(item => [item.id, null]))
+  }
+
+  const results = await Promise.allSettled(
+    items.map(item =>
+      limit(async (): Promise<TMDBDetailsResult> => {
+        if (!item.tmdbId) {
+          return { id: item.id, details: null }
+        }
+
+        try {
+          const endpoint = item.mediaType === 'tv' ? 'tv' : 'movie'
+          const res = await fetch(
+            `${BASE}/${endpoint}/${item.tmdbId}?append_to_response=credits`,
+            {
+              headers: { Authorization: `Bearer ${TMDB_KEY}` },
+              next: { revalidate: 3600 }
+            }
+          )
+
+          if (!res.ok) {
+            return { id: item.id, details: null, error: `HTTP ${res.status}` }
+          }
+
+          const data = await res.json()
+          return { id: item.id, details: data }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error'
+          return { id: item.id, details: null, error: message }
+        }
+      })
+    )
+  )
+
+  const detailsMap = new Map<string, TMDBMovieDetails | TMDBTVDetails | null>()
+
+  results.forEach((result, index) => {
+    const itemId = items[index].id
+    if (result.status === 'fulfilled') {
+      detailsMap.set(itemId, result.value.details)
+    } else {
+      detailsMap.set(itemId, null)
+    }
+  })
+
+  return detailsMap
+}
+
+/**
+ * Search TMDB by title to get poster (for user movies without TMDB ID)
+ */
+export async function batchSearchForPosters(
+  items: Array<{ id: string; title: string; mediaType?: MediaType }>
+): Promise<Map<string, { poster_path: string | null; tmdb_id: number | null }>> {
+  if (!TMDB_KEY) {
+    return new Map(items.map(item => [item.id, { poster_path: null, tmdb_id: null }]))
+  }
+
+  const results = await Promise.allSettled(
+    items.map(item =>
+      limit(async () => {
+        try {
+          const params = new URLSearchParams({ query: item.title })
+          const res = await fetch(`${BASE}/search/multi?${params}`, {
+            headers: {
+              'Authorization': `Bearer ${TMDB_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            next: { revalidate: 3600 }
+          })
+
+          if (!res.ok) {
+            return { id: item.id, poster_path: null, tmdb_id: null }
+          }
+
+          const data = await res.json()
+          const match = data.results?.find(
+            (r: { media_type: string }) => r.media_type === 'movie' || r.media_type === 'tv'
+          )
+
+          return {
+            id: item.id,
+            poster_path: match?.poster_path || null,
+            tmdb_id: match?.id || null
+          }
+        } catch {
+          return { id: item.id, poster_path: null, tmdb_id: null }
+        }
+      })
+    )
+  )
+
+  const posterMap = new Map<string, { poster_path: string | null; tmdb_id: number | null }>()
+
+  results.forEach((result, index) => {
+    const itemId = items[index].id
+    if (result.status === 'fulfilled') {
+      posterMap.set(itemId, {
+        poster_path: result.value.poster_path,
+        tmdb_id: result.value.tmdb_id
+      })
+    } else {
+      posterMap.set(itemId, { poster_path: null, tmdb_id: null })
+    }
+  })
+
+  return posterMap
+}
 
 export async function searchMedia(title: string, year?: number, mediaType?: 'movie' | 'tv') {
   if (!TMDB_KEY) {

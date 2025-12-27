@@ -15,11 +15,11 @@ export default function OnboardingPage() {
       <Header showActions={false} />
       <div className="max-w-5xl mx-auto px-4 py-6 sm:py-8 md:py-12">
         <div className="text-center mb-10 md:mb-16">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
             What do you like to watch?
           </h1>
-          <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-3xl mx-auto text-balance">
-            Rate {THRESHOLDS.MIN_MOVIES_ONBOARDING}-{THRESHOLDS.MAX_MOVIES_ONBOARDING} movies or TV shows, and we'll recommend {THRESHOLDS.TOTAL_RECOMMENDATIONS} perfect picks for you
+          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
+            Rate {THRESHOLDS.MIN_MOVIES_ONBOARDING}-{THRESHOLDS.MAX_MOVIES_ONBOARDING} movies or TV shows to get {THRESHOLDS.TOTAL_RECOMMENDATIONS} personalized recommendations
           </p>
         </div>
         

@@ -31,7 +31,7 @@ export async function getOrCreateSession(): Promise<string> {
           maxAge: 60 * 60 * 24 * 7, // 7 days
           sameSite: 'lax'
         })
-      } catch (e) {
+      } catch {
         // Cookie setting might fail in some Server Component contexts
         // Session is still valid and cookie will be set on next Server Action
       }

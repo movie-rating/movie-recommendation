@@ -1,15 +1,25 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { RATING_MAP_UPPER, THRESHOLDS, RECOMMENDATION_GENERATION } from './constants'
+import { RATING_MAP_UPPER, THRESHOLDS } from './constants'
 import { filterDuplicateTitles } from './utils'
+import {
+  AIRecommendation,
+  GeminiRecommendationsResponseSchema,
+  SimpleRecommendationsArraySchema,
+  RescoreResponseSchema,
+  parseGeminiResponse
+} from './schemas'
+import { logError } from './errors'
 import './env'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+
+export type { AIRecommendation }
 
 export async function generateRecommendations(
   movies: Array<{ title: string; sentiment: string; reason: string }>
 ): Promise<AIRecommendation[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
-  
+
   const prompt = `You are an entertainment expert. Based on these ratings, suggest exactly ${THRESHOLDS.TOTAL_RECOMMENDATIONS} movies or TV shows they would enjoy.
 
 User's ratings:
@@ -26,10 +36,15 @@ For ai_confidence (0-100 scale):
 
   const result = await model.generateContent(prompt)
   const text = result.response.text()
-  
-  // Clean any markdown artifacts
-  const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
-  return JSON.parse(cleaned)
+
+  const parsed = parseGeminiResponse(text, SimpleRecommendationsArraySchema, 'generateRecommendations')
+
+  if (!parsed.success) {
+    logError('Gemini', parsed.error, { code: 'PARSE_ERROR', meta: { rawText: parsed.rawText } })
+    return []
+  }
+
+  return parsed.data
 }
 
 export async function generateRecommendationsFromMovies(
@@ -39,35 +54,35 @@ export async function generateRecommendationsFromMovies(
   streamingPlatforms?: string[]
 ): Promise<{ safe: AIRecommendation[]; experimental: AIRecommendation[] }> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
-  
+
   // Separate loved/liked from hated/meh
-  const lovedMovies = userMovies.filter(m => 
+  const lovedMovies = userMovies.filter(m =>
     m.sentiment === 'loved' || m.sentiment === 'liked'
   )
-  const dislikedMovies = userMovies.filter(m => 
+  const dislikedMovies = userMovies.filter(m =>
     m.sentiment === 'hated' || m.sentiment === 'meh'
   )
-  
+
   // Build exclusion list section
-  const exclusionSection = existingMovieTitles.length > 0 
+  const exclusionSection = existingMovieTitles.length > 0
     ? `\n\nDO NOT RECOMMEND - Already seen (${existingMovieTitles.length} titles):
 ${existingMovieTitles.map(t => `- ${t}`).join('\n')}`
     : ''
-  
+
   // Build user guidance section
   const guidanceSection = userGuidance
     ? `\n\nUSER'S CURRENT REQUEST:\n"${userGuidance}"\nBlend this with their taste profile.`
     : ''
-  
+
   // Build platform constraint section
   const platformSection = streamingPlatforms && streamingPlatforms.length > 0
-    ? `\n\n🎬 STREAMING PLATFORM CONSTRAINT:
+    ? `\n\nSTREAMING PLATFORM CONSTRAINT:
 The user has access to: ${streamingPlatforms.join(', ')}
 
 CRITICAL: Only recommend movies and TV shows that are currently available on these platforms.
 Do NOT recommend content that requires other streaming services or is not on these platforms.`
     : ''
-  
+
   const prompt = `You are an entertainment expert. Generate movie and TV show recommendations.
 
 USER'S LOVED MOVIES:
@@ -115,29 +130,119 @@ Respond with ONLY valid JSON:
   const apiStartTime = Date.now()
   const result = await model.generateContent(prompt)
   const apiDuration = Date.now() - apiStartTime
-  
+
   const text = result.response.text()
   console.log(`[Gemini] API call: ${apiDuration}ms, Response: ${text.length} chars`)
-  
-  const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
-  const parsed = JSON.parse(cleaned)
-  
+
+  // Parse and validate with Zod schema
+  const parsed = parseGeminiResponse(text, GeminiRecommendationsResponseSchema, 'generateRecommendationsFromMovies')
+
+  if (!parsed.success) {
+    logError('Gemini', parsed.error, { code: 'PARSE_ERROR', meta: { rawText: parsed.rawText } })
+    return { safe: [], experimental: [] }
+  }
+
+  const { safe, experimental } = parsed.data
+
   // Filter duplicates using shared utility
-  const safeRecs = (parsed.safe || []) as AIRecommendation[]
-  const experimentalRecs = (parsed.experimental || []) as AIRecommendation[]
-  const safeFiltered = filterDuplicateTitles(safeRecs, existingMovieTitles, r => r.title)
-  const experimentalFiltered = filterDuplicateTitles(experimentalRecs, existingMovieTitles, r => r.title)
-  
-  console.log(`[Gemini] Results: ${safeFiltered.length} safe, ${experimentalFiltered.length} experimental (${(parsed.safe?.length || 0) - safeFiltered.length} safe dupes, ${(parsed.experimental?.length || 0) - experimentalFiltered.length} exp dupes)`)
-  
+  const safeFiltered = filterDuplicateTitles(safe, existingMovieTitles, r => r.title)
+  const experimentalFiltered = filterDuplicateTitles(experimental, existingMovieTitles, r => r.title)
+
+  console.log(`[Gemini] Results: ${safeFiltered.length} safe, ${experimentalFiltered.length} experimental (${safe.length - safeFiltered.length} safe dupes, ${experimental.length - experimentalFiltered.length} exp dupes)`)
+
   return {
     safe: safeFiltered,
     experimental: experimentalFiltered
   }
 }
 
+/**
+ * Generate joint recommendations for two users watching together
+ * Finds movies both users would enjoy based on their preferences
+ */
+export async function generateJointRecommendations(
+  hostMovies: Array<{ movie_title: string; sentiment: string; reason: string }>,
+  guestMovies: Array<{ movie_title: string; sentiment: string; reason: string }>,
+  sharedPlatforms: string[] = []
+): Promise<AIRecommendation[]> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
+
+  // Separate preferences by sentiment for each user
+  const hostLoved = hostMovies.filter(m => m.sentiment === 'loved' || m.sentiment === 'liked')
+  const hostHated = hostMovies.filter(m => m.sentiment === 'hated' || m.sentiment === 'meh')
+  const guestLoved = guestMovies.filter(m => m.sentiment === 'loved' || m.sentiment === 'liked')
+  const guestHated = guestMovies.filter(m => m.sentiment === 'hated' || m.sentiment === 'meh')
+
+  // Build platform section
+  const platformSection = sharedPlatforms.length > 0
+    ? `\nSHARED STREAMING PLATFORMS:\nBoth users have access to: ${sharedPlatforms.join(', ')}\nPrioritize content available on these platforms.`
+    : ''
+
+  // Get all movie titles to exclude from recommendations
+  const allUserMovies = [...hostMovies, ...guestMovies].map(m => m.movie_title)
+
+  const prompt = `You are an entertainment expert helping two people find a movie to watch together.
+
+USER 1 PREFERENCES:
+Loved/Liked:
+${hostLoved.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n') || '- None specified'}
+${hostHated.length > 0 ? `Disliked:\n${hostHated.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n')}` : ''}
+
+USER 2 PREFERENCES:
+Loved/Liked:
+${guestLoved.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n') || '- None specified'}
+${guestHated.length > 0 ? `Disliked:\n${guestHated.map(m => `- "${m.movie_title}"${m.reason ? `: ${m.reason}` : ''}`).join('\n')}` : ''}
+${platformSection}
+
+DO NOT RECOMMEND these movies (already rated by users):
+${allUserMovies.map(t => `- ${t}`).join('\n')}
+
+TASK: Generate exactly 15 movie recommendations they would BOTH enjoy.
+
+CRITICAL RULES:
+1. AVOID movies similar in style/genre to what EITHER user disliked
+2. PRIORITIZE movies that match tastes BOTH users loved
+3. Find common ground - overlapping genres, directors, eras, or themes
+4. Mix well-known crowd-pleasers with interesting discoveries
+5. Only recommend movies, not TV shows (easier for a single watch session)
+6. Diverse mix: different decades, countries, and styles
+
+For ai_confidence scoring (0-100):
+- 85-95: Strong match for BOTH users
+- 75-84: Good match with clear appeal for both
+- 65-74: Solid choice with some compromise
+- Below 65: Risky pick
+
+Respond with ONLY valid JSON - an array of 15 recommendations:
+[{"title": "Movie Name", "year": 2020, "reasoning": "Why both would enjoy (max 80 chars)", "match_explanation": "How it bridges their tastes (max 100 chars)", "ai_confidence": 85, "available_on": "Platform1, Platform2"}]`
+
+  console.log(`[Gemini] Joint recommendations - Host: ${hostMovies.length} movies, Guest: ${guestMovies.length} movies, Shared platforms: ${sharedPlatforms.length}`)
+
+  const apiStartTime = Date.now()
+  const result = await model.generateContent(prompt)
+  const apiDuration = Date.now() - apiStartTime
+
+  const text = result.response.text()
+  console.log(`[Gemini] Joint API call: ${apiDuration}ms, Response: ${text.length} chars`)
+
+  // Parse response
+  const parsed = parseGeminiResponse(text, SimpleRecommendationsArraySchema, 'generateJointRecommendations')
+
+  if (!parsed.success) {
+    logError('Gemini', parsed.error, { code: 'PARSE_ERROR', meta: { rawText: parsed.rawText } })
+    return []
+  }
+
+  // Filter out any movies that were in user lists
+  const filtered = filterDuplicateTitles(parsed.data, allUserMovies, r => r.title)
+
+  console.log(`[Gemini] Joint results: ${filtered.length} recommendations (${parsed.data.length - filtered.length} filtered)`)
+
+  return filtered
+}
+
 export async function rescoreRecommendations(
-  recommendations: Array<{ 
+  recommendations: Array<{
     id: string
     movie_title: string
     reasoning: string
@@ -146,15 +251,15 @@ export async function rescoreRecommendations(
   userMovies: Array<{ movie_title: string; sentiment: string; reason: string }>
 ): Promise<Map<string, number>> {
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' })
-  
+
   // Separate loved/liked from hated/meh
-  const lovedMovies = userMovies.filter(m => 
+  const lovedMovies = userMovies.filter(m =>
     m.sentiment === 'loved' || m.sentiment === 'liked'
   )
-  const dislikedMovies = userMovies.filter(m => 
+  const dislikedMovies = userMovies.filter(m =>
     m.sentiment === 'hated' || m.sentiment === 'meh'
   )
-  
+
   const prompt = `You are an entertainment expert. Score these existing recommendations based on how well they match the user's CURRENT taste profile.
 
 USER'S LOVED MOVIES:
@@ -181,28 +286,26 @@ Respond with ONLY valid JSON - an array of scores in the same order:
 
   const result = await model.generateContent(prompt)
   const text = result.response.text()
-  const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
-  const scores = JSON.parse(cleaned) as number[]
-  
+
+  // Parse and validate with Zod schema
+  const parsed = parseGeminiResponse(text, RescoreResponseSchema, 'rescoreRecommendations')
+
+  if (!parsed.success) {
+    logError('Gemini', parsed.error, { code: 'PARSE_ERROR', meta: { rawText: parsed.rawText } })
+    return new Map()
+  }
+
+  const scores = parsed.data
+
   // Build map of recommendation ID to score
   const scoreMap = new Map<string, number>()
   recommendations.forEach((rec, idx) => {
     if (idx < scores.length) {
-      // Ensure score is within valid range
-      const score = Math.max(0, Math.min(100, scores[idx]))
-      scoreMap.set(rec.id, score)
+      // Ensure score is within valid range (schema already validates 0-100)
+      scoreMap.set(rec.id, scores[idx])
     }
   })
-  
-  return scoreMap
-}
 
-type AIRecommendation = {
-  title: string
-  year?: number
-  reasoning: string
-  match_explanation: string
-  ai_confidence: number
-  available_on?: string
+  return scoreMap
 }
 

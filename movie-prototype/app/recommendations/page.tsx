@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionId } from '@/lib/session'
-import { getPosterUrl } from '@/lib/tmdb'
+import { getPosterUrl, batchFetchTMDBDetails, batchSearchForPosters } from '@/lib/tmdb'
 import { RecommendationsTabs } from '@/components/recommendations-tabs'
 import { Header } from '@/components/header'
 import { Button } from '@/components/ui/button'
@@ -8,10 +8,10 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
 import { THRESHOLDS } from '@/lib/constants'
-import type { Rating } from '@/lib/types'
-import { searchMediaAction } from '@/app/onboarding/actions'
+import type { Rating, MediaType } from '@/lib/types'
 import { getUserPlatforms } from '@/lib/db-helpers'
 import { PlatformManager } from '@/components/platform-manager'
+import { WatchTogetherButton } from '@/components/watch-together-button'
 
 // Force dynamic rendering since this page requires session data
 export const dynamic = 'force-dynamic'
@@ -49,104 +49,66 @@ export default async function RecommendationsPage() {
   
   // Get user's streaming platforms
   const userPlatforms = await getUserPlatforms(supabase, sessionId)
-  
-  // Fetch TMDB details in parallel with error handling
-  const TMDB_KEY = process.env.TMDB_API_KEY
-  
-  const detailsPromises = (recs || []).map(async (rec) => {
-    const isTV = rec.media_type === 'tv'
-    const tmdbId = isTV ? rec.tmdb_tv_id : rec.tmdb_movie_id
-    
-    if (!tmdbId || !TMDB_KEY) return null
-    
-    try {
-      const endpoint = isTV ? 'tv' : 'movie'
-      const res = await fetch(
-        `https://api.themoviedb.org/3/${endpoint}/${tmdbId}?append_to_response=credits`,
-        { 
-          headers: { Authorization: `Bearer ${TMDB_KEY}` },
-          next: { revalidate: 3600 } // Cache for 1 hour
-        }
-      )
-      return res.ok ? res.json() : null
-    } catch (e) {
-      console.error('Error fetching details:', e)
-      return null
-    }
-  })
-  
-  // Batch fetch all details
-  const details = await Promise.allSettled(detailsPromises)
-  
-  const recsWithDetails = (recs || []).map((rec, index) => ({
-    ...rec,
-    movieDetails: details[index].status === 'fulfilled' ? details[index].value : null
-  }))
 
   if (!recs || recs.length === 0) {
     redirect('/onboarding')
   }
-  
-  // Fetch TMDB details for user movies
-  const userMovieDetailsPromises = (userMovies || []).map(async (movie) => {
-    const isTV = movie.media_type === 'tv'
-    const tmdbId = isTV ? movie.tmdb_tv_id : movie.tmdb_movie_id
-    
-    // If movie has TMDB ID, fetch details directly
-    if (tmdbId && TMDB_KEY) {
-      try {
-        const endpoint = isTV ? 'tv' : 'movie'
-        const res = await fetch(
-          `https://api.themoviedb.org/3/${endpoint}/${tmdbId}?append_to_response=credits`,
-          { 
-            headers: { Authorization: `Bearer ${TMDB_KEY}` },
-            next: { revalidate: 3600 }
-          }
-        )
-        return res.ok ? res.json() : null
-      } catch (e) {
-        console.error('Error fetching user movie details:', e)
-        return null
-      }
-    }
-    
-    // If no TMDB ID, search by title to get poster using raw TMDB API
-    if (TMDB_KEY) {
-      try {
-        const params = new URLSearchParams({ query: movie.movie_title })
-        const res = await fetch(`https://api.themoviedb.org/3/search/multi?${params}`, {
-          headers: {
-            'Authorization': `Bearer ${TMDB_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          next: { revalidate: 3600 }
-        })
-        
-        if (res.ok) {
-          const data = await res.json()
-          const result = data.results?.find((r: any) => r.media_type === 'movie' || r.media_type === 'tv')
-          if (result) {
-            // Return a minimal object with poster_path
-            return {
-              poster_path: result.poster_path,
-              id: result.id
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Error searching for movie:', e)
-      }
-    }
-    
-    return null
-  })
-  
-  const userMovieDetails = await Promise.allSettled(userMovieDetailsPromises)
-  
-  const userMoviesWithDetails = (userMovies || []).map((movie, index) => ({
-    ...movie,
-    movieDetails: userMovieDetails[index].status === 'fulfilled' ? userMovieDetails[index].value : null
+
+  // Batch fetch TMDB details for recommendations (fixes N+1 query)
+  const recItems = (recs || []).map(rec => ({
+    id: rec.id,
+    tmdbId: rec.media_type === 'tv' ? rec.tmdb_tv_id : rec.tmdb_movie_id,
+    mediaType: (rec.media_type || 'movie') as MediaType
   }))
+
+  const recDetailsMap = await batchFetchTMDBDetails(recItems)
+
+  const recsWithDetails = (recs || []).map(rec => ({
+    ...rec,
+    movieDetails: recDetailsMap.get(rec.id) || null
+  }))
+
+  // Split user movies into those with and without TMDB IDs
+  const userMoviesWithTmdbId = (userMovies || []).filter(m => m.tmdb_movie_id || m.tmdb_tv_id)
+  const userMoviesWithoutTmdbId = (userMovies || []).filter(m => !m.tmdb_movie_id && !m.tmdb_tv_id)
+
+  // Batch fetch details for user movies with TMDB IDs
+  const userMovieItems = userMoviesWithTmdbId.map(movie => ({
+    id: movie.id,
+    tmdbId: movie.media_type === 'tv' ? movie.tmdb_tv_id : movie.tmdb_movie_id,
+    mediaType: (movie.media_type || 'movie') as MediaType
+  }))
+
+  // Batch search for posters for user movies without TMDB IDs
+  const searchItems = userMoviesWithoutTmdbId.map(movie => ({
+    id: movie.id,
+    title: movie.movie_title,
+    mediaType: (movie.media_type || 'movie') as MediaType
+  }))
+
+  // Run both batch operations in parallel
+  const [userMovieDetailsMap, posterSearchMap] = await Promise.all([
+    batchFetchTMDBDetails(userMovieItems),
+    batchSearchForPosters(searchItems)
+  ])
+
+  // Combine user movies with their details
+  const userMoviesWithDetails = (userMovies || []).map(movie => {
+    const hasTmdbId = movie.tmdb_movie_id || movie.tmdb_tv_id
+
+    if (hasTmdbId) {
+      return {
+        ...movie,
+        movieDetails: userMovieDetailsMap.get(movie.id) || null
+      }
+    } else {
+      const posterData = posterSearchMap.get(movie.id)
+      return {
+        ...movie,
+        movieDetails: posterData ? { poster_path: posterData.poster_path, id: posterData.tmdb_id } : null
+      }
+    }
+  })
 
   // Transform data
   const recsWithFeedback = recsWithDetails.map(rec => ({
@@ -230,14 +192,17 @@ export default async function RecommendationsPage() {
             </p>
           </div>
           
-          {!user && (
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/auth/sign-up">
-                <span className="hidden sm:inline">Save Progress (Sign Up)</span>
-                <span className="sm:hidden">Sign Up to Save</span>
-              </Link>
-            </Button>
-          )}
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <WatchTogetherButton sessionId={sessionId} />
+            {!user && (
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link href="/auth/sign-up">
+                  <span className="hidden sm:inline">Save Progress (Sign Up)</span>
+                  <span className="sm:hidden">Sign Up to Save</span>
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Platform Manager */}

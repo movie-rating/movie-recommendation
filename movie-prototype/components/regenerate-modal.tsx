@@ -1,8 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Button } from './ui/button'
-import { Badge } from './ui/badge'
-import { StreamingPlatformSelector } from './streaming-platform-selector'
+import { PLATFORMS } from './streaming-platform-selector'
 
 export function RegenerateModal({
   isOpen,
@@ -29,8 +28,8 @@ export function RegenerateModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-card p-6 rounded-lg border max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-card p-6 rounded-lg border shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-bold mb-2">Guide Your Next Recommendations</h3>
         <p className="text-sm text-muted-foreground mb-4">
           Break out of pigeonholed patterns. Tell us what direction you want to explore - we'll blend it with your taste DNA.
@@ -41,21 +40,31 @@ export function RegenerateModal({
           <div className="mb-4 p-3 bg-muted/30 rounded-lg border border-muted">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground uppercase">Filtering by platforms</span>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowPlatformEdit(!showPlatformEdit)}
-                className="text-xs text-primary hover:underline"
                 type="button"
               >
-                {showPlatformEdit ? 'Hide' : 'Edit'}
-              </button>
+                {showPlatformEdit ? 'Done' : 'Edit'}
+              </Button>
             </div>
             {!showPlatformEdit ? (
               <div className="flex gap-1.5 flex-wrap">
-                {currentPlatforms.map(p => (
-                  <Badge key={p} variant="secondary" className="text-xs">
-                    {p}
-                  </Badge>
-                ))}
+                {currentPlatforms.map(p => {
+                  const platform = PLATFORMS.find(plat => plat.name === p)
+                  const displayName = platform?.displayName || p
+                  const badgeColors = platform?.badgeColors || 'bg-primary/10 text-foreground'
+                  return (
+                    <span
+                      key={p}
+                      className={`${badgeColors} text-xs px-2 py-0.5 rounded font-semibold shadow-sm`}
+                      title={displayName}
+                    >
+                      {displayName}
+                    </span>
+                  )
+                })}
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">
@@ -92,7 +101,7 @@ export function RegenerateModal({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Generating...' : guidance ? 'Generate with Guidance' : 'Generate'}
+            {loading ? 'Generating...' : guidance ? 'Generate with Guidance' : 'Generate Fresh Picks'}
           </Button>
         </div>
       </div>

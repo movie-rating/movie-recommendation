@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { RatingModal } from './rating-modal'
 import { NotInterestedModal } from './not-interested-modal'
 import { SuccessToast } from './success-toast'
+import { PlatformBadge } from './platform-badge'
 import { BookmarkPlus, Star, XCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { RATING_MAP } from '@/lib/constants'
 import type { MovieFeedback, MediaType, TMDBMovieDetails, TMDBTVDetails } from '@/lib/types'
@@ -138,11 +139,7 @@ export function MovieCardHorizontal({
                 </span>
                 {year && <span className="text-muted-foreground">{year}</span>}
                 {rating && <span className="text-muted-foreground">⭐ {rating}</span>}
-                {availableOn && (
-                  <span className="px-2 py-0.5 rounded bg-primary/20 text-primary font-medium">
-                    {availableOn}
-                  </span>
-                )}
+                <PlatformBadge availableOn={availableOn} size="sm" />
               </div>
             </div>
 

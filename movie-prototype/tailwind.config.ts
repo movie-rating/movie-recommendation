@@ -8,6 +8,15 @@ export default {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    'bg-[#E50914]',  // Netflix
+    'bg-[#00A8E1]',  // Prime Video
+    'bg-[#113CCF]',  // Disney+
+    'bg-[#A065FA]',  // HBO Max
+    'bg-[#1CE783]',  // Hulu
+    'bg-black',      // Apple TV+
+    'bg-[#0064FF]',  // Paramount+
+  ],
   theme: {
     extend: {
       colors: {

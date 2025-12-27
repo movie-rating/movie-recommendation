@@ -95,12 +95,12 @@ CRITICAL REQUIREMENTS:
 - Avoid all titles in the exclusion list
 - Mix of movies and TV shows in both categories
 - Diverse genres, decades, countries
-- Each recommendation needs: title, year, reasoning (max 80 chars), match_explanation (max 120 chars), ai_confidence (0-100), available_on (which platform from user's list, if platforms provided)
+- Each recommendation needs: title, year, reasoning (max 80 chars), match_explanation (max 120 chars), ai_confidence (0-100), available_on (comma-separated list of ALL platforms from user's list where this content is available, if platforms provided)
 
 Respond with ONLY valid JSON:
 {
   "safe": [
-    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this matches", "ai_confidence": 85, "available_on": "Netflix"}
+    {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this matches", "ai_confidence": 85, "available_on": "Netflix, Hulu"}
   ],
   "experimental": [
     {"title": "Movie Name", "year": 2020, "reasoning": "Brief pitch", "match_explanation": "Why this expands their taste", "ai_confidence": 70, "available_on": "Disney+"}

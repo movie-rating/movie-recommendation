@@ -1,34 +1,45 @@
 'use client'
 
 // Popular US streaming platforms with logos
-const PLATFORMS = [
+export const PLATFORMS = [
   { 
     name: 'Netflix',
+    displayName: 'Netflix',
     logo: <span className="font-bold text-lg tracking-tight">NETFLIX</span>,
-    color: 'text-[#E50914]'
+    color: 'text-[#E50914]',
+    badgeColors: 'bg-[#E50914] text-white'
   },
   { 
     name: 'Amazon Prime Video',
+    displayName: 'Prime Video',
     logo: <span className="font-bold text-base">Prime Video</span>,
-    color: 'text-[#00A8E1]'
+    color: 'text-[#00A8E1]',
+    badgeColors: 'bg-[#00A8E1] text-white'
   },
   { 
     name: 'Disney+',
+    displayName: 'Disney+',
     logo: <span className="font-bold text-lg">Disney+</span>,
-    color: 'text-[#113CCF]'
+    color: 'text-[#113CCF]',
+    badgeColors: 'bg-[#113CCF] text-white'
   },
   { 
     name: 'HBO Max',
+    displayName: 'HBO Max',
     logo: <span className="font-bold text-lg tracking-wide">HBO MAX</span>,
-    color: 'text-[#A065FA]'
+    color: 'text-[#A065FA]',
+    badgeColors: 'bg-[#A065FA] text-white'
   },
   { 
     name: 'Hulu',
+    displayName: 'Hulu',
     logo: <span className="font-bold text-xl">hulu</span>,
-    color: 'text-[#1CE783]'
+    color: 'text-[#1CE783]',
+    badgeColors: 'bg-[#1CE783] text-white'
   },
   { 
     name: 'Apple TV+',
+    displayName: 'Apple TV+',
     logo: (
       <span className="flex items-center gap-1.5">
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -37,10 +48,12 @@ const PLATFORMS = [
         <span className="font-semibold text-base">TV+</span>
       </span>
     ),
-    color: 'text-foreground'
+    color: 'text-foreground',
+    badgeColors: 'bg-black text-white'
   },
   { 
     name: 'Paramount+',
+    displayName: 'Paramount+',
     logo: (
       <span className="flex items-center gap-1.5">
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -49,10 +62,12 @@ const PLATFORMS = [
         <span className="font-bold text-base">Paramount+</span>
       </span>
     ),
-    color: 'text-[#0064FF]'
+    color: 'text-[#0064FF]',
+    badgeColors: 'bg-[#0064FF] text-white'
   },
   { 
     name: 'Peacock',
+    displayName: 'Peacock',
     logo: (
       <span className="flex items-center gap-1.5">
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -61,7 +76,8 @@ const PLATFORMS = [
         <span className="font-bold text-base">Peacock</span>
       </span>
     ),
-    color: 'text-foreground'
+    color: 'text-foreground',
+    badgeColors: 'bg-gradient-to-r from-purple-600 to-pink-500 text-white'
   }
 ]
 

@@ -1,8 +1,7 @@
 'use client'
-import { useState } from 'react'
-import { StreamingPlatformSelector } from './streaming-platform-selector'
+import { useState, useEffect } from 'react'
+import { StreamingPlatformSelector, PLATFORMS } from './streaming-platform-selector'
 import { Button } from './ui/button'
-import { Badge } from './ui/badge'
 import { updateUserPlatformsAction } from '@/app/recommendations/actions'
 import { useRouter } from 'next/navigation'
 
@@ -39,6 +38,22 @@ export function PlatformManager({ initialPlatforms }: PlatformManagerProps) {
     setError(null)
   }
 
+  // Handle ESC key to close modal
+  useEffect(() => {
+    if (!isEditing) return
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPlatforms(initialPlatforms)
+        setIsEditing(false)
+        setError(null)
+      }
+    }
+    
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isEditing, initialPlatforms])
+
   // Show "Add Platforms" button if none exist
   if (initialPlatforms.length === 0 && !isEditing) {
     return (
@@ -65,15 +80,20 @@ export function PlatformManager({ initialPlatforms }: PlatformManagerProps) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium">Showing content on:</span>
-            {initialPlatforms.map(p => (
-              <Badge 
-                key={p}
-                variant="secondary"
-                className="bg-primary/10 border-primary/20"
-              >
-                {p}
-              </Badge>
-            ))}
+            {initialPlatforms.map(p => {
+              const platform = PLATFORMS.find(plat => plat.name === p)
+              const displayName = platform?.displayName || p
+              const badgeColors = platform?.badgeColors || 'bg-primary/10 text-foreground'
+              return (
+                <span
+                  key={p}
+                  className={`${badgeColors} text-xs px-2 py-0.5 rounded font-semibold shadow-sm`}
+                  title={displayName}
+                >
+                  {displayName}
+                </span>
+              )
+            })}
           </div>
           <Button 
             variant="outline" 
@@ -88,8 +108,14 @@ export function PlatformManager({ initialPlatforms }: PlatformManagerProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-card p-6 rounded-lg border max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={handleCancel}
+    >
+      <div 
+        className="bg-card p-6 rounded-lg border shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-lg font-bold mb-4">Edit Streaming Platforms</h3>
         
         {error && (
